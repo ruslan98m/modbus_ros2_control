@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(modbus_driver)
+project(modbus_ros2_control)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -53,7 +53,7 @@ ament_target_dependencies(modbus_hardware_interface
 )
 target_link_libraries(modbus_hardware_interface ${LIBMODBUS_LIBRARIES} yaml-cpp)
 
-pluginlib_export_plugin_description_file(hardware_interface modbus_driver_plugin.xml)
+pluginlib_export_plugin_description_file(hardware_interface modbus_ros2_control_plugins.xml)
 
 install(TARGETS modbus_hardware_interface
   ARCHIVE DESTINATION lib
