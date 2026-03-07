@@ -6,11 +6,11 @@ Please read this document before submitting issues or pull requests.
 
 ## Reporting bugs and feature requests
 
-Use the [GitHub issue tracker](https://github.com/YOUR_ORG/modbus_ros2_control/issues) to report bugs or suggest features.
+Use the [GitHub issue tracker](https://github.com/ruslan98m/modbus_ros2_control/issues) to report bugs or suggest features.
 
 When filing an issue, please:
 
-- Check existing [open](https://github.com/YOUR_ORG/modbus_ros2_control/issues) and [recently closed](https://github.com/YOUR_ORG/modbus_ros2_control/issues?q=is%3Aissue+is%3Aclosed) issues first.
+- Check existing [open](https://github.com/ruslan98m/modbus_ros2_control/issues) and [recently closed](https://github.com/ruslan98m/modbus_ros2_control/issues?q=is%3Aissue+is%3Aclosed) issues first.
 - Include a reproducible test case or steps.
 - Mention the version of the code and your environment (OS, ROS 2 distro).
 
