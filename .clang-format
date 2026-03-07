@@ -1,0 +1,21 @@
+# Clang-format for modbus_ros2_control (ROS 2 style, Google-based)
+# Use: clang-format -i path/to/file.cpp
+# See https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#code-style
+
+BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 2
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+BreakBeforeBraces: Attach
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<.*\.(h|hpp)>'
+    Priority:        1
+  - Regex:           '^<.*'
+    Priority:        2
+  - Regex:           '.*'
+    Priority:        3
+SortIncludes: true
+SpaceAfterCStyleCast: false

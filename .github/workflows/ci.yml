@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, jazzy]
+  pull_request:
+    branches: [main, jazzy]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    container:
+      image: ros:jazzy-ros-base-jammy
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y -qq \
+            libmodbus-dev \
+            libyaml-cpp-dev \
+            python3-pip \
+            ros-jazzy-ros2-control \
+            ros-jazzy-controller-manager \
+            ros-jazzy-robot-state-publisher \
+            ros-jazzy-realtime-tools \
+            ros-jazzy-xacro
+          pip install colcon-common-extensions
+
+      - name: Build
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          mkdir -p /ros2_ws/src
+          cp -r $GITHUB_WORKSPACE /ros2_ws/src/modbus_ros2_control
+          cd /ros2_ws
+          rosdep install -y --from-paths src --ignore-src -r || true
+          colcon build --packages-select modbus_ros2_control --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+      - name: Test
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          cd /ros2_ws
+          . install/setup.sh
+          colcon test --packages-select modbus_ros2_control
+          colcon test-result --verbose

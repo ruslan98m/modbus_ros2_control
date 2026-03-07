@@ -1,0 +1,11 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    # Example: state broadcaster to publish modbus state interfaces to /joint_states (optional)
+    # state_broadcaster:
+    #   type: joint_state_broadcaster/JointStateBroadcaster
+
+    # Use your controllers that claim modbus state/command interfaces.
+# Interface names: <hardware_name>/<bus_name>_<device_name>_<register_name>
+# e.g. ModbusTCP/tcp_bus_plc_1_temperature (state), ModbusRTU/rs485_bus_drive_1_command (command)

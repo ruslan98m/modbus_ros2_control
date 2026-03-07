@@ -1,0 +1,10 @@
+<library path="modbus_hardware_interface">
+  <class name="modbus_ros2_control/ModbusSystemInterface"
+         type="modbus_ros2_control::ModbusSystemInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Modbus (RTU/TCP) hardware interface for ros2_control. Bus configured in xacro;
+      each device has its own YAML. Optional poll thread with realtime_tools (priority, affinity, lock_memory).
+    </description>
+  </class>
+</library>
