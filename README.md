@@ -3,7 +3,7 @@
 [![CI](https://github.com/ruslan98m/modbus_ros2_control/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan98m/modbus_ros2_control/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Meta-package and packages for Modbus hardware interface and TCP test server with [ros2_control](https://control.ros.org/).
+ Packages for Modbus hardware interface and TCP test server with [ros2_control](https://control.ros.org/).
 
 ## Packages
 
