@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="modbus_robot_two_buses">
+  <link name="base_link"/>
+
+  <xacro:include filename="$(find modbus_hw_interface)/description/ros2_control/modbus_bus.ros2_control.xacro"/>
+
+  <!-- Bus 1: TCP -->
+  <xacro:modbus_tcp_bus name="ModbusTCP" bus_name="tcp_plc" ip_address="192.168.1.10" port="502">
+    <devices>
+      <joint name="plc_1">
+        <param name="slave_id">1</param>
+        <param name="device_config">$(find modbus_hw_interface)/config/devices/plc_device.yaml</param>
+      </joint>
+    </devices>
+  </xacro:modbus_tcp_bus>
+
+  <!-- Bus 2: RS485 (RTU) -->
+  <xacro:modbus_rtu_bus name="ModbusRTU" bus_name="rs485_bus" serial_port="/dev/ttyUSB0" baud_rate="9600">
+    <devices>
+      <joint name="drive_1">
+        <param name="slave_id">1</param>
+        <param name="device_config">$(find modbus_hw_interface)/config/devices/drive_device.yaml</param>
+      </joint>
+    </devices>
+  </xacro:modbus_rtu_bus>
+</robot>

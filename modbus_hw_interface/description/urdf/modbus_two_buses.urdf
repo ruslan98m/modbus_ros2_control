@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Example: TCP and RS485 as two separate buses = two hardware interfaces.
+     Replace REPLACE_TCP_CONFIG and REPLACE_RTU_CONFIG with actual paths in launch. -->
+<robot name="modbus_robot_two_buses">
+  <link name="base_link"/>
+
+  <!-- Bus 1: TCP only -->
+  <ros2_control name="ModbusTCP" type="system">
+    <hardware>
+      <plugin>modbus_hw_interface/ModbusSystemInterface</plugin>
+      <param name="modbus_config_file">REPLACE_TCP_CONFIG</param>
+    </hardware>
+  </ros2_control>
+
+  <!-- Bus 2: RS485 (RTU) only -->
+  <ros2_control name="ModbusRTU" type="system">
+    <hardware>
+      <plugin>modbus_hw_interface/ModbusSystemInterface</plugin>
+      <param name="modbus_config_file">REPLACE_RTU_CONFIG</param>
+    </hardware>
+  </ros2_control>
+</robot>

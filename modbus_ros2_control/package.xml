@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>modbus_ros2_control</name>
+  <version>0.1.0</version>
+  <description>Meta-package: Modbus hardware interface and TCP test server for ros2_control.</description>
+  <maintainer email="ruslan98mambetov@gmail.com">Ruslan Mambetov</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>modbus_hw_interface</build_depend>
+  <build_depend>modbus_tcp_test_server</build_depend>
+
+  <exec_depend>modbus_hw_interface</exec_depend>
+  <exec_depend>modbus_tcp_test_server</exec_depend>
+
+  <test_depend>controller_manager</test_depend>
+  <test_depend>controller_manager_msgs</test_depend>
+  <test_depend>lifecycle_msgs</test_depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>robot_state_publisher</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,18 @@
+# Configuration file for Modbus device (e.g. PLC). Used by xacro via device_config / slave_config.
+
+# Optional: support for multi-register/coil read-write (default: true). If false, device only supports
+# single register/coil per request (FC03/FC04/FC06 single; FC01/FC02/FC05 single).
+read_multiple_registers: true
+write_multiple_registers: true
+read_multiple_coils: true
+write_multiple_coils: true
+
+# Optional: written once at startup. Only coil and holding_register.
+init_registers:
+  - { type: "holding_register", address: 100, data_type: "uint16", value: 1 }
+  - { type: "coil", address: 0, data_type: "bool", value: true }
+
+registers:
+  - { name: "temperature", type: "input_register", address: 0, interface: "state", data_type: "int16" }
+  - { name: "setpoint", type: "holding_register", address: 0, interface: "command", data_type: "uint16" }
+  - { name: "relay", type: "coil", address: 0, interface: "command", data_type: "bool" }

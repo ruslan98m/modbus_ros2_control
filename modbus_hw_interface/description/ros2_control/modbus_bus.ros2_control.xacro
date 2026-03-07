@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Modbus bus: configured in xacro. Each device = joint with slave_id + device_config (YAML path, like EtherCAT slave_config). -->
+
+  <!-- TCP bus: params in hardware; poll thread RT params (realtime_tools): lock_memory, thread_priority, cpu_affinity, preallocate_stack -->
+  <xacro:macro name="modbus_tcp_bus" params="name bus_name:=tcp_bus ip_address:=192.168.1.10 port:=502 poll_rate_hz:=50 thread_priority:=50 cpu_affinity:= lock_memory:=false preallocate_stack:=false">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>modbus_hw_interface/ModbusSystemInterface</plugin>
+        <param name="connection_type">tcp</param>
+        <param name="bus_name">${bus_name}</param>
+        <param name="ip_address">${ip_address}</param>
+        <param name="port">${port}</param>
+        <param name="poll_rate_hz">${poll_rate_hz}</param>
+        <param name="thread_priority">${thread_priority}</param>
+        <param name="cpu_affinity">${cpu_affinity}</param>
+      </hardware>
+      <xacro:insert_block name="devices"/>
+    </ros2_control>
+  </xacro:macro>
+
+  <!-- RTU (RS485) bus -->
+  <xacro:macro name="modbus_rtu_bus" params="name bus_name:=rs485_bus serial_port:=/dev/ttyUSB0 baud_rate:=9600 parity:=N data_bits:=8 stop_bits:=1 poll_rate_hz:=50 thread_priority:=50 cpu_affinity:= lock_memory:=false preallocate_stack:=false">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>modbus_hw_interface/ModbusSystemInterface</plugin>
+        <param name="connection_type">rtu</param>
+        <param name="bus_name">${bus_name}</param>
+        <param name="serial_port">${serial_port}</param>
+        <param name="baud_rate">${baud_rate}</param>
+        <param name="parity">${parity}</param>
+        <param name="data_bits">${data_bits}</param>
+        <param name="stop_bits">${stop_bits}</param>
+        <param name="poll_rate_hz">${poll_rate_hz}</param>
+        <param name="thread_priority">${thread_priority}</param>
+        <param name="cpu_affinity">${cpu_affinity}</param>
+      </hardware>
+      <xacro:insert_block name="devices"/>
+    </ros2_control>
+  </xacro:macro>
+</robot>

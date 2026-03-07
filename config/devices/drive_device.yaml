@@ -1,5 +1,0 @@
-# Configuration file for Modbus device (e.g. drive). Used by xacro via device_config / slave_config.
-
-registers:
-  - { name: "speed", type: "holding_register", address: 0, interface: "state", data_type: "uint16" }
-  - { name: "command", type: "holding_register", address: 1, interface: "command", data_type: "int16" }
