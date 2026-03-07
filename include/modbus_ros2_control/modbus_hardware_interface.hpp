@@ -18,32 +18,13 @@
 #include "realtime_tools/realtime_buffer.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
+#include "modbus_ros2_control/modbus_types.hpp"
+
 #include <modbus/modbus.h>
 #include <yaml-cpp/yaml.h>
 
 namespace modbus_ros2_control
 {
-
-enum class RegisterType
-{
-  Coil,             // 0x, read/write
-  DiscreteInput,   // 1x, read-only
-  InputRegister,    // 3x, read-only
-  HoldingRegister  // 4x, read/write
-};
-
-enum class RegisterDataType
-{
-  Bool,
-  Int16,
-  Uint16,
-  Int32,
-  Uint32,
-  Float32,
-  Int64,
-  Uint64,
-  Float64
-};
 
 struct ModbusRegisterConfig
 {

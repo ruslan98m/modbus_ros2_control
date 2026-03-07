@@ -39,6 +39,7 @@ include_directories(
 
 add_library(modbus_hardware_interface SHARED
   src/modbus_hardware_interface.cpp
+  src/modbus_utils.cpp
 )
 target_include_directories(modbus_hardware_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
