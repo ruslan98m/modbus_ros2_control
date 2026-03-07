@@ -378,10 +378,10 @@ bool ModbusSystemInterface::writeRegisterValue(
         };
         return modbus_write_registers(ctx, reg.address, 4, tab) == 4;
       }
+      break;
     }
-    default:
-      return false;
   }
+  return false;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
