@@ -81,9 +81,11 @@ public:
   const modbus_mapping_t * mapping() const { return mb_mapping_; }
 
 private:
-  modbus_t * ctx_{nullptr};           /**< libmodbus TCP context */
+  modbus_t * ctx_{nullptr};           /**< libmodbus TCP context (recreated per client) */
   modbus_mapping_t * mb_mapping_{nullptr};  /**< Coils and registers mapping */
   int server_socket_{-1};             /**< Listening socket (or -1) */
+  int port_{-1};                      /**< Port from open() for context recreation */
+  int slave_id_{1};                   /**< Slave ID from open() for context recreation */
 
   /** Number of coils (0x) in the mapping */
   static constexpr int NB_COILS = 256;

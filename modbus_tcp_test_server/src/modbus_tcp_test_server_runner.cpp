@@ -20,6 +20,8 @@ bool ModbusTcpTestServerRunner::open(int port, int slave_id)
   }
 
   modbus_set_slave(ctx_, slave_id);
+  port_ = port;
+  slave_id_ = slave_id;
 
   mb_mapping_ = modbus_mapping_new(
     NB_COILS, NB_DISCRETE_INPUTS, NB_HOLDING_REGISTERS, NB_INPUT_REGISTERS);
@@ -65,7 +67,16 @@ void ModbusTcpTestServerRunner::run(std::atomic<bool> & running)
     }
 
     modbus_close(ctx_);
-    modbus_tcp_accept(ctx_, &server_socket_);
+    modbus_free(ctx_);
+    ctx_ = nullptr;
+    if (!running.load()) {
+      break;
+    }
+    ctx_ = modbus_new_tcp(nullptr, port_);
+    if (!ctx_) {
+      break;
+    }
+    modbus_set_slave(ctx_, slave_id_);
   }
 }
 

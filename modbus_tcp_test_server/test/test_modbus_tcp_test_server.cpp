@@ -116,7 +116,7 @@ TEST(ModbusTcpTestServer, WriteAndReadHoldingRegister)
   std::thread server_thread(
     [&]() { modbus_tcp_test_server::run_modbus_tcp_test_server(port, SLAVE_ID, running); });
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   modbus_t * ctx = connect_client(HOST, port, SLAVE_ID);
   if (!ctx) {
@@ -148,7 +148,7 @@ TEST(ModbusTcpTestServer, WriteAndReadCoil)
   std::thread server_thread(
     [&]() { modbus_tcp_test_server::run_modbus_tcp_test_server(port, SLAVE_ID, running); });
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   modbus_t * ctx = connect_client(HOST, port, SLAVE_ID);
   if (!ctx) {
@@ -181,7 +181,7 @@ TEST(ModbusTcpTestServer, WriteAndReadMultipleHoldingRegisters)
   std::thread server_thread(
     [&]() { modbus_tcp_test_server::run_modbus_tcp_test_server(port, SLAVE_ID, running); });
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   modbus_t * ctx = connect_client(HOST, port, SLAVE_ID);
   if (!ctx) {
@@ -214,7 +214,7 @@ TEST(ModbusTcpTestServer, RunnerClassWriteAndReadHoldingRegister)
 
   std::atomic<bool> running{true};
   std::thread server_thread([&]() { runner.run(running); });
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   modbus_t * ctx = connect_client(HOST, port, SLAVE_ID);
   if (!ctx) {
@@ -248,7 +248,7 @@ TEST(ModbusTcpTestServer, ReadInputRegisters)
 
   std::atomic<bool> running{true};
   std::thread server_thread([&]() { runner.run(running); });
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   modbus_t * ctx = connect_client(HOST, port, SLAVE_ID);
   if (!ctx) {
