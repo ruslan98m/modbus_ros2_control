@@ -23,13 +23,12 @@ jobs:
           apt-get install -y -qq \
             libmodbus-dev \
             libyaml-cpp-dev \
-            python3-pip \
+            python3-colcon-common-extensions \
             ros-jazzy-ros2-control \
             ros-jazzy-controller-manager \
             ros-jazzy-robot-state-publisher \
             ros-jazzy-realtime-tools \
             ros-jazzy-xacro
-          pip install colcon-common-extensions
 
       - name: Build
         run: |
