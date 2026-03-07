@@ -94,8 +94,8 @@ registers:
 ```
 
 - **init_registers** (optional): list of registers written **once at startup** (before polling). Only `coil` and `holding_register` are writable. Each entry: `type`, `address`, `data_type`, `value`.
-- **registers**: list of entries with `name`, `type`, `address`, `interface` (`state` or `command`), `data_type`.  
-  - **type** (register): `coil`/`c`, `discrete_input`/`di`, `input_register`/`ir`, `holding_register`/`hr`.  
+- **registers**: list of entries with `name`, `type`, `address`, `interface` (`state` or `command`), `data_type`.
+  - **type** (register): `coil`/`c`, `discrete_input`/`di`, `input_register`/`ir`, `holding_register`/`hr`.
   - **data_type**: `bool`/`b`, `int16`/`i16`/`i8`, `uint16`/`u16`/`u8`, `int32`/`i32`, `uint32`/`u32`, `float32`/`f32`, `int64`/`i64`, `uint64`/`u64`, `float64`/`f64`. Case-insensitive.
 
 ### Interface names
