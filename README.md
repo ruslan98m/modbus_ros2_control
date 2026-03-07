@@ -1,7 +1,6 @@
 # modbus_ros2_control
 
-[![CI](https://github.com/YOUR_ORG/modbus_ros2_control/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/modbus_ros2_control/actions/workflows/ci.yml)
-[![Format](https://github.com/YOUR_ORG/modbus_ros2_control/actions/workflows/ci-format.yml/badge.svg)](https://github.com/YOUR_ORG/modbus_ros2_control/actions/workflows/ci-format.yml)
+[![CI](https://github.com/ruslan98m/modbus_ros2_control/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan98m/modbus_ros2_control/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 **Hardware interface** for Modbus RTU (RS485) and Modbus TCP (Ethernet) with [ros2_control](https://control.ros.org/), in the same plugin style as [ethercat_driver_ros2](https://github.com/ICube-Robotics/ethercat_driver_ros2). **Bus is configured in xacro**; **each device has its own YAML** (like EtherCAT `slave_config`). Registers are exposed as **state** or **command** interfaces. Polling runs in a **separate thread** with configurable realtime_tools (priority, affinity).
