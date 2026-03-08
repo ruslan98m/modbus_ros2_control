@@ -81,6 +81,18 @@ public:
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
   }
 
+  ~ModbusTcpTestServerNode()
+  {
+    // On SIGINT launch does not call on_deactivate/on_shutdown; ensure thread is stopped
+    // before runner_ is destroyed (otherwise joinable thread -> std::terminate).
+    running_.store(false);
+    runner_.close_listen_socket();
+    if (server_thread_.joinable()) {
+      server_thread_.join();
+    }
+    runner_.close();
+  }
+
 private:
   int port_{DEFAULT_PORT};
   int slave_id_{DEFAULT_SLAVE_ID};

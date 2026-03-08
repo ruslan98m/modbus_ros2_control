@@ -53,6 +53,12 @@ public:
   void run(std::atomic<bool> & running);
 
   /**
+   * @brief Close only the listening socket (e.g. to unblock accept() in run()).
+   * Call before join() when stopping the server thread; then call close() to free resources.
+   */
+  void close_listen_socket();
+
+  /**
    * @brief Close the server socket and free context and mapping.
    * Safe to call multiple times (idempotent).
    */
