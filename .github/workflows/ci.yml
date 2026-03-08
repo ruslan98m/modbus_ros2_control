@@ -30,7 +30,8 @@ jobs:
             ros-jazzy-launch-testing \
             ros-jazzy-launch-testing-ament-cmake \
             ros-jazzy-launch-testing-ros \
-            ros-jazzy-lifecycle-msgs
+            ros-jazzy-lifecycle-msgs \
+            ros-jazzy-ros2-controllers
 
       - name: Build
         run: |
