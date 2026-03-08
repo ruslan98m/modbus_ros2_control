@@ -14,11 +14,9 @@
 
 #include "modbus_hw_interface/modbus_types.hpp"
 
-namespace modbus_hw_interface
-{
+namespace modbus_hw_interface {
 
-struct ModbusRegisterConfig
-{
+struct ModbusRegisterConfig {
   std::string name;
   RegisterType type{RegisterType::HoldingRegister};
   int address{0};
@@ -27,9 +25,9 @@ struct ModbusRegisterConfig
   int register_count{1};  // 1 for 16-bit, 2 for 32-bit/float32, 4 for 64-bit
 };
 
-/** Written once at startup (on_activate) before polling. Only coil and holding_register are writable. */
-struct ModbusInitRegisterConfig
-{
+/** Written once at startup (on_activate) before polling. Only coil and holding_register are
+ * writable. */
+struct ModbusInitRegisterConfig {
   RegisterType type{RegisterType::HoldingRegister};
   int address{0};
   RegisterDataType data_type{RegisterDataType::Uint16};
@@ -37,15 +35,15 @@ struct ModbusInitRegisterConfig
   double value{0};
 };
 
-struct ModbusDeviceConfig
-{
-  std::string name;   // device/joint name from xacro (for interface naming)
+struct ModbusDeviceConfig {
+  std::string name;  // device/joint name from xacro (for interface naming)
   int slave_id{1};
   /** If true, use one Modbus request to read adjacent registers (FC03/FC04 multi). Default true. */
   bool read_multiple_registers{true};
   /** If true, use one Modbus request to write adjacent holding registers (FC16). Default true. */
   bool write_multiple_registers{true};
-  /** If true, use one Modbus request to read adjacent coils/bits (FC01/FC02 multi). Default true. */
+  /** If true, use one Modbus request to read adjacent coils/bits (FC01/FC02 multi). Default true.
+   */
   bool read_multiple_coils{true};
   /** If true, use one Modbus request to write adjacent coils (FC15). Default true. */
   bool write_multiple_coils{true};
@@ -56,8 +54,7 @@ struct ModbusDeviceConfig
 };
 
 /** One bus = one connection (either RTU or TCP, not both). */
-struct ModbusBusConfig
-{
+struct ModbusBusConfig {
   std::string bus_name;  // for interface naming
   bool is_tcp{true};
   // TCP (when is_tcp == true)

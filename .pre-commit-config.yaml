@@ -9,11 +9,27 @@ repos:
     hooks:
       - id: check-added-large-files
       - id: check-merge-conflict
+      - id: check-xml
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: mixed-line-ending
         args: [--fix=lf]
+
+  # Python: PEP 8 style formatting
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3
+        types: [python]
+
+  # YAML: format and fix (no Node.js required)
+  - repo: https://github.com/lyz-code/yamlfix
+    rev: 1.19.1
+    hooks:
+      - id: yamlfix
+        exclude: ^\.(pre-commit-config\.yaml|clang-format)$
 
   - repo: local
     hooks:

@@ -14,11 +14,11 @@ from launch_ros.actions import Node
 
 def build_robot_description():
     """Build robot_description for test: Modbus TCP 127.0.0.1:5502."""
-    pkg_hw = get_package_share_directory('modbus_hw_interface')
-    device_config = os.path.join(pkg_hw, 'config', 'devices', 'plc_device.yaml')
+    pkg_hw = get_package_share_directory("modbus_hw_interface")
+    device_config = os.path.join(pkg_hw, "config", "devices", "plc_device.yaml")
     if not os.path.isfile(device_config):
-        raise FileNotFoundError(f'device config not found: {device_config}')
-    return f'''<?xml version="1.0"?>
+        raise FileNotFoundError(f"device config not found: {device_config}")
+    return f"""<?xml version="1.0"?>
 <robot name="modbus_robot">
   <link name="base_link"/>
   <link name="plc_1_link"/>
@@ -45,58 +45,64 @@ def build_robot_description():
     </joint>
   </ros2_control>
 </robot>
-'''
+"""
 
 
 def generate_launch_description():
     robot_description = build_robot_description()
-    pkg_hw = get_package_share_directory('modbus_hw_interface')
-    controllers_yaml = os.path.join(pkg_hw, 'config', 'controllers.yaml')
+    pkg_hw = get_package_share_directory("modbus_hw_interface")
+    controllers_yaml = os.path.join(pkg_hw, "config", "controllers.yaml")
 
     controller_manager_node = Node(
-        package='controller_manager',
-        executable='ros2_control_node',
-        name='controller_manager',
+        package="controller_manager",
+        executable="ros2_control_node",
+        name="controller_manager",
         parameters=[
-            {'robot_description': robot_description},
+            {"robot_description": robot_description},
             controllers_yaml,
         ],
-        output='screen',
+        output="screen",
     )
 
     spawner_node = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
-        output='screen',
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "joint_state_broadcaster",
+            "--controller-manager",
+            "/controller_manager",
+        ],
+        output="screen",
     )
 
-    return LaunchDescription([
-        Node(
-            package='modbus_tcp_test_server',
-            executable='modbus_tcp_test_server_node',
-            name='modbus_tcp_test_server',
-            parameters=[{'port': 5502, 'slave_id': 1}],
-            output='screen',
-        ),
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
-            parameters=[{'robot_description': robot_description}],
-            output='screen',
-        ),
-        controller_manager_node,
-        # Spawn joint_state_broadcaster so state interfaces (modbus registers) are published to /dynamic_joint_states
-        RegisterEventHandler(
-            OnProcessStart(
-                target_action=controller_manager_node,
-                on_start=[
-                    TimerAction(
-                        period=2.0,
-                        actions=[spawner_node],
-                    ),
-                ],
+    return LaunchDescription(
+        [
+            Node(
+                package="modbus_tcp_test_server",
+                executable="modbus_tcp_test_server_node",
+                name="modbus_tcp_test_server",
+                parameters=[{"port": 5502, "slave_id": 1}],
+                output="screen",
             ),
-        ),
-    ])
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="robot_state_publisher",
+                parameters=[{"robot_description": robot_description}],
+                output="screen",
+            ),
+            controller_manager_node,
+            # Spawn joint_state_broadcaster so state interfaces (modbus registers) are published to /dynamic_joint_states
+            RegisterEventHandler(
+                OnProcessStart(
+                    target_action=controller_manager_node,
+                    on_start=[
+                        TimerAction(
+                            period=2.0,
+                            actions=[spawner_node],
+                        ),
+                    ],
+                ),
+            ),
+        ]
+    )

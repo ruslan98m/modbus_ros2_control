@@ -9,14 +9,14 @@
 #ifndef MODBUS_HW_INTERFACE__MODBUS_IO_HPP_
 #define MODBUS_HW_INTERFACE__MODBUS_IO_HPP_
 
-#include <cstddef>
 #include <modbus/modbus.h>
+
+#include <cstddef>
 
 #include "modbus_hw_interface/modbus_config.hpp"
 #include "modbus_hw_interface/modbus_types.hpp"
 
-namespace modbus_hw_interface
-{
+namespace modbus_hw_interface {
 
 /**
  * Decode a value from a raw register buffer (for batch read).
@@ -26,8 +26,8 @@ namespace modbus_hw_interface
  * @param data_type How to interpret the value.
  * @return Decoded value as double.
  */
-double decodeRegistersFromBuffer(
-  const uint16_t * tab, size_t offset, int register_count, RegisterDataType data_type);
+double decodeRegistersFromBuffer(const uint16_t* tab, size_t offset, int register_count,
+                                 RegisterDataType data_type);
 
 /**
  * Read one register or coil and return its value as double.
@@ -35,7 +35,7 @@ double decodeRegistersFromBuffer(
  * @param reg Register configuration (type, address, data_type, register_count).
  * @return Value as double, or 0.0 on error.
  */
-double readRegisterValue(modbus_t * ctx, const ModbusRegisterConfig & reg);
+double readRegisterValue(modbus_t* ctx, const ModbusRegisterConfig& reg);
 
 /**
  * Write one register or coil from a double value.
@@ -44,7 +44,7 @@ double readRegisterValue(modbus_t * ctx, const ModbusRegisterConfig & reg);
  * @param value Value to write (coils: non-zero = 1; registers: converted by data_type).
  * @return true on success, false for read-only types or Modbus failure.
  */
-bool writeRegisterValue(modbus_t * ctx, const ModbusRegisterConfig & reg, double value);
+bool writeRegisterValue(modbus_t* ctx, const ModbusRegisterConfig& reg, double value);
 
 }  // namespace modbus_hw_interface
 

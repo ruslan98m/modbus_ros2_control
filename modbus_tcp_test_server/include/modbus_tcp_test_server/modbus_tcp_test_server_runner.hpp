@@ -14,8 +14,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace modbus_tcp_test_server
-{
+namespace modbus_tcp_test_server {
 
 /**
  * @class ModbusTcpTestServerRunner
@@ -25,17 +24,18 @@ namespace modbus_tcp_test_server
  * set the running flag to false and call close() to stop and release resources.
  * @see https://libmodbus.org/
  */
-class ModbusTcpTestServerRunner
-{
-public:
+class ModbusTcpTestServerRunner {
+ public:
   ModbusTcpTestServerRunner() = default;
 
   /** @brief Copy disabled (class owns modbus context and file descriptor). */
   ModbusTcpTestServerRunner(const ModbusTcpTestServerRunner &) = delete;
-  ModbusTcpTestServerRunner & operator=(const ModbusTcpTestServerRunner &) = delete;
+  ModbusTcpTestServerRunner &operator=(const ModbusTcpTestServerRunner &) = delete;
 
   /** @brief Destructor calls close() to free context and mapping. */
-  ~ModbusTcpTestServerRunner() { close(); }
+  ~ModbusTcpTestServerRunner() {
+    close();
+  }
 
   /**
    * @brief Create Modbus TCP context, set slave ID and listen on the given port.
@@ -50,7 +50,7 @@ public:
    * Call only after a successful open(). Exits when @p running becomes false.
    * @param running Set to false to stop the loop (e.g. from another thread).
    */
-  void run(std::atomic<bool> & running);
+  void run(std::atomic<bool> &running);
 
   /**
    * @brief Close only the listening socket (e.g. to unblock accept() in run()).
@@ -68,30 +68,40 @@ public:
    * @brief Check if the server is currently open.
    * @return true if open() succeeded and close() has not been called.
    */
-  bool is_open() const { return ctx_ != nullptr; }
+  bool is_open() const {
+    return ctx_ != nullptr;
+  }
 
   /**
    * @brief Get the raw libmodbus context (e.g. for custom operations).
    * @return Pointer to the context, or nullptr if not open.
    */
-  modbus_t * context() { return ctx_; }
+  modbus_t *context() {
+    return ctx_;
+  }
   /** @brief Const overload of context(). */
-  const modbus_t * context() const { return ctx_; }
+  const modbus_t *context() const {
+    return ctx_;
+  }
 
   /**
    * @brief Get the modbus mapping (coils, discrete inputs, input/holding registers).
    * @return Pointer to the mapping, or nullptr if not open.
    */
-  modbus_mapping_t * mapping() { return mb_mapping_; }
+  modbus_mapping_t *mapping() {
+    return mb_mapping_;
+  }
   /** @brief Const overload of mapping(). */
-  const modbus_mapping_t * mapping() const { return mb_mapping_; }
+  const modbus_mapping_t *mapping() const {
+    return mb_mapping_;
+  }
 
-private:
-  modbus_t * ctx_{nullptr};           /**< libmodbus TCP context (recreated per client) */
-  modbus_mapping_t * mb_mapping_{nullptr};  /**< Coils and registers mapping */
-  int server_socket_{-1};             /**< Listening socket (or -1) */
-  int port_{-1};                      /**< Port from open() for context recreation */
-  int slave_id_{1};                   /**< Slave ID from open() for context recreation */
+ private:
+  modbus_t *ctx_{nullptr};                /**< libmodbus TCP context (recreated per client) */
+  modbus_mapping_t *mb_mapping_{nullptr}; /**< Coils and registers mapping */
+  int server_socket_{-1};                 /**< Listening socket (or -1) */
+  int port_{-1};                          /**< Port from open() for context recreation */
+  int slave_id_{1};                       /**< Slave ID from open() for context recreation */
 
   /** Number of coils (0x) in the mapping */
   static constexpr int NB_COILS = 256;
@@ -110,7 +120,7 @@ private:
  * @param slave_id Modbus slave ID (e.g. 1).
  * @param running Set to false to stop the server loop.
  */
-void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool> & running);
+void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool> &running);
 
 }  // namespace modbus_tcp_test_server
 
