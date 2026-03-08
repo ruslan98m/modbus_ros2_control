@@ -1,5 +1,9 @@
 # Configuration file for Modbus device (e.g. PLC). Used by xacro via device_config / slave_config.
 
+# Optional: response timeout in seconds (float). If set, modbus requests will wait at most this long
+# for a reply from the device. If not set or 0, libmodbus default is used.
+response_timeout_sec: 1.0
+
 # Optional: support for multi-register/coil read-write (default: true). If false, device only supports
 # single register/coil per request (FC03/FC04/FC06 single; FC01/FC02/FC05 single).
 read_multiple_registers: true
@@ -12,7 +16,13 @@ init_registers:
   - { type: "holding_register", address: 100, data_type: "uint16", value: 1 }
   - { type: "coil", address: 0, data_type: "bool", value: true }
 
+# registers: name, type (input_register/holding_register/coil/discrete_input), address (start),
+#   interface (state/command), data_type. Multi-register types use address = first register:
+#   int16/uint16/bool = 1 reg; int32/uint32/float32 = 2 regs; int64/uint64/float64 = 4 regs.
 registers:
   - { name: "temperature", type: "input_register", address: 0, interface: "state", data_type: "int16" }
+  - { name: "pressure", type: "input_register", address: 1, interface: "state", data_type: "float32" }
+  - { name: "flow", type: "input_register", address: 3, interface: "state", data_type: "float64" }
+  - { name: "counter", type: "input_register", address: 7, interface: "state", data_type: "int32" }
   - { name: "setpoint", type: "holding_register", address: 0, interface: "command", data_type: "uint16" }
   - { name: "relay", type: "coil", address: 0, interface: "command", data_type: "bool" }
