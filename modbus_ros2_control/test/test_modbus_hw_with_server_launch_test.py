@@ -150,12 +150,72 @@ class TestModbusLifecycle(unittest.TestCase):
         finally:
             node.destroy_node()
 
+    def test_register_values_from_broadcaster_match_expected(self):
+        """State from joint_state_broadcaster (/dynamic_joint_states): validate values read by hw interface.
+        Test server sets registers to value=address, coils to address%2. We check state interfaces published by broadcaster.
+        """
+        import rclpy
+        from control_msgs.msg import DynamicJointState
+
+        try:
+            rclpy.init()
+        except Exception:
+            pass
+        node = rclpy.create_node('test_broadcaster_values')
+        received = []
+
+        def cb(msg):
+            received.append(msg)
+
+        try:
+            sub = node.create_subscription(
+                DynamicJointState,
+                '/dynamic_joint_states',
+                cb,
+                10,
+            )
+            # Wait for broadcaster to publish (broadcaster spawns ~2s after controller_manager)
+            for _ in range(50):
+                rclpy.spin_once(node, timeout_sec=0.2)
+                if received:
+                    break
+            self.assertGreater(len(received), 0, 'No /dynamic_joint_states message received')
+            msg = received[-1]
+            # joint_state_broadcaster may use hardware name 'ModbusTCP' or joint name 'plc_1'
+            try:
+                idx = list(msg.joint_names).index('ModbusTCP')
+            except ValueError:
+                try:
+                    idx = list(msg.joint_names).index('plc_1')
+                except ValueError:
+                    self.skipTest('ModbusTCP/plc_1 not in dynamic_joint_states (joint_names: %s)' % list(msg.joint_names))
+
+            # DynamicJointState: interface_values[i] is InterfaceValue for joint_names[i]
+            iv = msg.interface_values[idx]
+            name_to_val = dict(zip(iv.interface_names, iv.values))
+
+            # Test server: input_register[addr] = addr. So temperature (addr 0) == 0
+            temp_key = next((k for k in name_to_val if 'temperature' in k), None)
+            self.assertIsNotNone(temp_key, 'temperature interface not found in %s' % list(name_to_val.keys()))
+            self.assertAlmostEqual(float(name_to_val[temp_key]), 0.0, places=5,
+                msg='temperature (input_register 0) should be 0')
+
+            # counter = int32 from input_registers 7,8 (values 7 and 8) -> (7<<16)|8 = 458760
+            counter_expected = (7 << 16) | 8
+            counter_key = next((k for k in name_to_val if 'counter' in k), None)
+            self.assertIsNotNone(counter_key, 'counter interface not found in %s' % list(name_to_val.keys()))
+            self.assertAlmostEqual(float(name_to_val[counter_key]), counter_expected, places=0,
+                msg='counter (input_registers 7,8) should be %d' % counter_expected)
+        finally:
+            node.destroy_node()
+
 
 @launch_testing.post_shutdown_test()
 class TestModbusHwWithServerExitCodes(unittest.TestCase):
     """After shutdown: assert all processes exited with code 0."""
 
     def test_processes_exit_gracefully(self, proc_info):
+        # 0 = ok, -2 = SIGINT, -6/250 = SIGABRT (e.g. modbus_tcp_test_server on shutdown), 1 = spawner failed
         launch_testing.asserts.assertExitCodes(
-            proc_info, allowable_exit_codes=[0, -2, -6]
+            proc_info, allowable_exit_codes=[0, -2]
         )

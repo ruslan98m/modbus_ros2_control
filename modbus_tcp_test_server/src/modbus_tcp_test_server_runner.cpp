@@ -31,6 +31,21 @@ bool ModbusTcpTestServerRunner::open(int port, int slave_id)
     return false;
   }
 
+  // Coils: value = address % 2 (even -> 0, odd -> 1)
+  for (int i = 0; i < NB_COILS; ++i) {
+    mb_mapping_->tab_bits[i] = static_cast<uint8_t>(i % 2);
+  }
+  for (int i = 0; i < NB_DISCRETE_INPUTS; ++i) {
+    mb_mapping_->tab_input_bits[i] = static_cast<uint8_t>(i % 2);
+  }
+  // Registers: value = address
+  for (int i = 0; i < NB_HOLDING_REGISTERS; ++i) {
+    mb_mapping_->tab_registers[i] = static_cast<uint16_t>(i);
+  }
+  for (int i = 0; i < NB_INPUT_REGISTERS; ++i) {
+    mb_mapping_->tab_input_registers[i] = static_cast<uint16_t>(i);
+  }
+
   server_socket_ = modbus_tcp_listen(ctx_, 1);
   if (server_socket_ < 0) {
     modbus_mapping_free(mb_mapping_);
@@ -80,12 +95,17 @@ void ModbusTcpTestServerRunner::run(std::atomic<bool> & running)
   }
 }
 
-void ModbusTcpTestServerRunner::close()
+void ModbusTcpTestServerRunner::close_listen_socket()
 {
   if (server_socket_ >= 0) {
     ::close(server_socket_);
     server_socket_ = -1;
   }
+}
+
+void ModbusTcpTestServerRunner::close()
+{
+  close_listen_socket();
   if (mb_mapping_ != nullptr) {
     modbus_mapping_free(mb_mapping_);
     mb_mapping_ = nullptr;

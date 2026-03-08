@@ -22,6 +22,8 @@
   <test_depend>launch_testing_ament_cmake</test_depend>
   <test_depend>launch_testing_ros</test_depend>
   <test_depend>robot_state_publisher</test_depend>
+  <test_depend>control_msgs</test_depend>
+  <test_depend>ros2_controllers</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
