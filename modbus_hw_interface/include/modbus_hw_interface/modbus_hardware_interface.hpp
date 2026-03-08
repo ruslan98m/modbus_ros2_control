@@ -4,8 +4,6 @@
 #ifndef MODBUS_HW_INTERFACE__MODBUS_HARDWARE_INTERFACE_HPP_
 #define MODBUS_HW_INTERFACE__MODBUS_HARDWARE_INTERFACE_HPP_
 
-#include <modbus/modbus.h>
-
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -22,6 +20,8 @@
 #include "modbus_hw_interface/modbus_types.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "realtime_tools/realtime_buffer.hpp"
+// Include modbus last: it defines TRUE/FALSE macros that conflict with hardware_interface enums
+#include <modbus/modbus.h>
 
 namespace modbus_hw_interface {
 
