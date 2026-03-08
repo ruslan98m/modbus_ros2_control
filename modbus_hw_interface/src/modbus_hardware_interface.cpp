@@ -66,9 +66,9 @@ bool ModbusSystemInterface::loadBusFromParams(const hardware_interface::Hardware
   bus_config_.bus_name = get("bus_name", bus_config_.is_tcp ? "tcp" : "rtu");
 
   try {
-    poll_rate_hz_ = std::stod(get("poll_rate_hz", "50"));
+    poll_rate_hz_ = std::stod(get("poll_rate_hz", "0"));
   } catch (...) {
-    poll_rate_hz_ = 50.0;
+    poll_rate_hz_ = 0.0;
   }
   try {
     thread_priority_ = std::stoi(get("thread_priority", "50"));
@@ -118,6 +118,17 @@ modbus_t * ModbusSystemInterface::getContext()
   return ctx_;
 }
 
+void ModbusSystemInterface::setContextResponseTimeout(modbus_t * ctx, size_t device_index)
+{
+  if (ctx == nullptr || device_index >= bus_config_.devices.size()) return;
+  const auto & dev = bus_config_.devices[device_index];
+  if (dev.response_timeout_sec <= 0) return;
+  double s = dev.response_timeout_sec;
+  uint32_t to_sec = static_cast<uint32_t>(s);
+  uint32_t to_usec = static_cast<uint32_t>((s - to_sec) * 1e6);
+  modbus_set_response_timeout(ctx, to_sec, to_usec);
+}
+
 void ModbusSystemInterface::closeContext()
 {
   if (ctx_) {
@@ -156,7 +167,8 @@ void ModbusSystemInterface::buildBatchGroups()
       for (size_t i = 0; i < items.size(); ) {
         const RegisterType cur_type = items[i].second->type;
         int cur_addr = items[i].second->address;
-        ReadBatchGroup grp;
+        BatchGroup grp;
+        grp.device_index = dev_idx;
         grp.slave_id = slave_id;
         grp.type = cur_type;
         grp.start_address = cur_addr;
@@ -166,16 +178,16 @@ void ModbusSystemInterface::buildBatchGroups()
           : dev.read_multiple_registers;
         while (i < items.size() && items[i].second->type == cur_type && items[i].second->address == cur_addr) {
           const auto * reg = items[i].second;
-          grp.items.push_back({items[i].first, reg->register_count, reg->data_type, reg});
+          grp.items.push_back({reg->register_count, reg->data_type, reg, items[i].first});
           grp.total_count += reg->register_count;
           cur_addr += reg->register_count;
           ++i;
         }
         if (grp.use_batch && grp.total_count > 0) {
           if (cur_type == RegisterType::Coil || cur_type == RegisterType::DiscreteInput) {
-            grp.read_bits_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.bits_buffer.resize(static_cast<size_t>(grp.total_count));
           } else {
-            grp.read_reg_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.reg_buffer.resize(static_cast<size_t>(grp.total_count));
           }
         }
         read_batch_groups_.push_back(std::move(grp));
@@ -211,7 +223,8 @@ void ModbusSystemInterface::buildBatchGroups()
           ++i;
           continue;
         }
-        WriteBatchGroup grp;
+        BatchGroup grp;
+        grp.device_index = dev_idx;
         grp.slave_id = slave_id;
         grp.type = cur_type;
         grp.start_address = cur_addr;
@@ -221,16 +234,16 @@ void ModbusSystemInterface::buildBatchGroups()
           : dev.write_multiple_registers;
         while (i < items.size() && items[i].second->type == cur_type && items[i].second->address == cur_addr) {
           const auto * reg = items[i].second;
-          grp.items.push_back({items[i].first, reg->register_count, reg->data_type, reg});
+          grp.items.push_back({reg->register_count, reg->data_type, reg, items[i].first});
           grp.total_count += reg->register_count;
           cur_addr += reg->register_count;
           ++i;
         }
         if (grp.use_batch && grp.total_count > 0) {
           if (cur_type == RegisterType::HoldingRegister) {
-            grp.write_reg_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.reg_buffer.resize(static_cast<size_t>(grp.total_count));
           } else if (cur_type == RegisterType::Coil) {
-            grp.write_bits_buffer.resize(grp.items.size());
+            grp.bits_buffer.resize(grp.items.size());
           }
         }
         write_batch_groups_.push_back(std::move(grp));
@@ -249,40 +262,41 @@ void ModbusSystemInterface::readStateBatched(modbus_t * ctx, std::vector<double>
   if (state_vals.size() != state_handles_.size()) return;
   std::fill(state_vals.begin(), state_vals.end(), 0.0);
   for (auto & grp : read_batch_groups_) {
+    setContextResponseTimeout(ctx, grp.device_index);
     if (modbus_set_slave(ctx, grp.slave_id) < 0) continue;
     if (grp.use_batch && grp.total_count > 0) {
-      if (grp.type == RegisterType::Coil && !grp.read_bits_buffer.empty()) {
-        if (modbus_read_bits(ctx, grp.start_address, grp.total_count, grp.read_bits_buffer.data()) == grp.total_count) {
+      if (grp.type == RegisterType::Coil && !grp.bits_buffer.empty()) {
+        if (modbus_read_bits(ctx, grp.start_address, grp.total_count, grp.bits_buffer.data()) == grp.total_count) {
           size_t off = 0;
           for (const auto & it : grp.items) {
-            state_vals[it.state_index] = grp.read_bits_buffer[off] ? 1.0 : 0.0;
+            state_vals[it.index] = grp.bits_buffer[off] ? 1.0 : 0.0;
             off += static_cast<size_t>(it.register_count);
           }
         }
-      } else if (grp.type == RegisterType::DiscreteInput && !grp.read_bits_buffer.empty()) {
-        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.read_bits_buffer.data()) == grp.total_count) {
+      } else if (grp.type == RegisterType::DiscreteInput && !grp.bits_buffer.empty()) {
+        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.bits_buffer.data()) == grp.total_count) {
           size_t off = 0;
           for (const auto & it : grp.items) {
-            state_vals[it.state_index] = grp.read_bits_buffer[off] ? 1.0 : 0.0;
+            state_vals[it.index] = grp.bits_buffer[off] ? 1.0 : 0.0;
             off += static_cast<size_t>(it.register_count);
           }
         }
-      } else if (!grp.read_reg_buffer.empty()) {
+      } else if (!grp.reg_buffer.empty()) {
         int ret = (grp.type == RegisterType::InputRegister)
-          ? modbus_read_input_registers(ctx, grp.start_address, grp.total_count, grp.read_reg_buffer.data())
-          : modbus_read_registers(ctx, grp.start_address, grp.total_count, grp.read_reg_buffer.data());
+          ? modbus_read_input_registers(ctx, grp.start_address, grp.total_count, grp.reg_buffer.data())
+          : modbus_read_registers(ctx, grp.start_address, grp.total_count, grp.reg_buffer.data());
         if (ret == grp.total_count) {
           size_t off = 0;
           for (const auto & it : grp.items) {
-            state_vals[it.state_index] = decodeRegistersFromBuffer(
-              grp.read_reg_buffer.data(), off, it.register_count, it.data_type);
+            state_vals[it.index] = decodeRegistersFromBuffer(
+              grp.reg_buffer.data(), off, it.register_count, it.data_type);
             off += static_cast<size_t>(it.register_count);
           }
         }
       }
     } else {
       for (const auto & it : grp.items) {
-        state_vals[it.state_index] = readRegisterValue(ctx, *it.reg);
+        state_vals[it.index] = readRegisterValue(ctx, *it.reg);
       }
     }
   }
@@ -293,14 +307,15 @@ void ModbusSystemInterface::writeCommandBatched(
 {
   if (command_vals.size() != command_handles_.size()) return;
   for (auto & grp : write_batch_groups_) {
+    setContextResponseTimeout(ctx, grp.device_index);
     if (modbus_set_slave(ctx, grp.slave_id) < 0) continue;
-    if (grp.use_batch && grp.total_count > 0 && grp.type == RegisterType::HoldingRegister && !grp.write_reg_buffer.empty()) {
+    if (grp.use_batch && grp.total_count > 0 && grp.type == RegisterType::HoldingRegister && !grp.reg_buffer.empty()) {
       size_t off = 0;
       for (const auto & it : grp.items) {
-        const double val = command_vals[it.command_index];
+        const double val = command_vals[it.index];
         const ModbusRegisterConfig * reg = it.reg;
         if (reg->register_count == 1) {
-          grp.write_reg_buffer[off] = (reg->data_type == RegisterDataType::Int16)
+          grp.reg_buffer[off] = (reg->data_type == RegisterDataType::Int16)
             ? static_cast<uint16_t>(static_cast<int16_t>(val))
             : static_cast<uint16_t>(val);
         } else if (reg->register_count == 2) {
@@ -311,8 +326,8 @@ void ModbusSystemInterface::writeCommandBatched(
           } else {
             u32 = static_cast<uint32_t>(val);
           }
-          grp.write_reg_buffer[off] = static_cast<uint16_t>(u32 >> 16);
-          grp.write_reg_buffer[off + 1] = static_cast<uint16_t>(u32 & 0xFFFF);
+          grp.reg_buffer[off] = static_cast<uint16_t>(u32 >> 16);
+          grp.reg_buffer[off + 1] = static_cast<uint16_t>(u32 & 0xFFFF);
         } else if (reg->register_count == 4) {
           uint64_t u64;
           if (reg->data_type == RegisterDataType::Float64) {
@@ -322,25 +337,61 @@ void ModbusSystemInterface::writeCommandBatched(
           } else {
             u64 = static_cast<uint64_t>(val);
           }
-          grp.write_reg_buffer[off] = static_cast<uint16_t>(u64 >> 48);
-          grp.write_reg_buffer[off + 1] = static_cast<uint16_t>((u64 >> 32) & 0xFFFF);
-          grp.write_reg_buffer[off + 2] = static_cast<uint16_t>((u64 >> 16) & 0xFFFF);
-          grp.write_reg_buffer[off + 3] = static_cast<uint16_t>(u64 & 0xFFFF);
+          grp.reg_buffer[off] = static_cast<uint16_t>(u64 >> 48);
+          grp.reg_buffer[off + 1] = static_cast<uint16_t>((u64 >> 32) & 0xFFFF);
+          grp.reg_buffer[off + 2] = static_cast<uint16_t>((u64 >> 16) & 0xFFFF);
+          grp.reg_buffer[off + 3] = static_cast<uint16_t>(u64 & 0xFFFF);
         }
         off += static_cast<size_t>(reg->register_count);
       }
-      modbus_write_registers(ctx, grp.start_address, grp.total_count, grp.write_reg_buffer.data());
-    } else if (grp.use_batch && grp.type == RegisterType::Coil && !grp.write_bits_buffer.empty()) {
-      for (size_t g = 0; g < grp.write_bits_buffer.size(); ++g) {
-        grp.write_bits_buffer[g] = (std::fabs(command_vals[grp.items[g].command_index]) > 0.5) ? 1 : 0;
+      modbus_write_registers(ctx, grp.start_address, grp.total_count, grp.reg_buffer.data());
+    } else if (grp.use_batch && grp.type == RegisterType::Coil && !grp.bits_buffer.empty()) {
+      for (size_t g = 0; g < grp.bits_buffer.size(); ++g) {
+        grp.bits_buffer[g] = (std::fabs(command_vals[grp.items[g].index]) > 0.5) ? 1 : 0;
       }
-      modbus_write_bits(ctx, grp.start_address, static_cast<int>(grp.write_bits_buffer.size()), grp.write_bits_buffer.data());
+      modbus_write_bits(ctx, grp.start_address, static_cast<int>(grp.bits_buffer.size()), grp.bits_buffer.data());
     } else {
       for (const auto & it : grp.items) {
-        writeRegisterValue(ctx, *it.reg, command_vals[it.command_index]);
+        writeRegisterValue(ctx, *it.reg, command_vals[it.index]);
       }
     }
   }
+}
+
+bool ModbusSystemInterface::loadDevicesFromComponents(
+  const std::vector<hardware_interface::ComponentInfo> & components,
+  const std::string & component_type)
+{
+  const auto logger = rclcpp::get_logger("ModbusSystemInterface");
+  ModbusDeviceConfigLoader config_loader(logger);
+  for (const auto & comp : components) {
+    auto it_cfg = comp.parameters.find("device_config");
+    if (it_cfg == comp.parameters.end()) {
+      it_cfg = comp.parameters.find("slave_config");
+    }
+    if (it_cfg == comp.parameters.end() || it_cfg->second.empty()) {
+      RCLCPP_ERROR(logger,
+        "%s '%s': missing param 'device_config' or 'slave_config' (path to device YAML)",
+        component_type.c_str(), comp.name.c_str());
+      return false;
+    }
+    int slave_id = 1;
+    auto it_slave = comp.parameters.find("slave_id");
+    if (it_slave != comp.parameters.end()) {
+      try {
+        slave_id = std::stoi(it_slave->second);
+      } catch (...) {}
+    }
+    ModbusDeviceConfig dev;
+    dev.name = comp.name;
+    dev.slave_id = slave_id;
+    if (!config_loader.load(it_cfg->second, dev)) {
+      RCLCPP_ERROR(logger, "Failed to load device config from '%s'", it_cfg->second.c_str());
+      return false;
+    }
+    bus_config_.devices.push_back(dev);
+  }
+  return true;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
@@ -354,30 +405,14 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  for (const auto & joint : info.joints) {
-    auto it_cfg = joint.parameters.find("device_config");
-    if (it_cfg == joint.parameters.end()) {
-      it_cfg = joint.parameters.find("slave_config");
-    }
-    if (it_cfg == joint.parameters.end() || it_cfg->second.empty()) {
-      RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-        "Joint '%s': missing param 'device_config' or 'slave_config' (path to device YAML)", joint.name.c_str());
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-    int slave_id = 1;
-    auto it_slave = joint.parameters.find("slave_id");
-    if (it_slave != joint.parameters.end()) {
-      try {
-        slave_id = std::stoi(it_slave->second);
-      } catch (...) {}
-    }
-    ModbusDeviceConfig dev;
-    dev.name = joint.name;
-    dev.slave_id = slave_id;
-    if (!loadDeviceConfigFromFile(it_cfg->second, dev)) {
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-    bus_config_.devices.push_back(dev);
+  if (!loadDevicesFromComponents(info.joints, "Joint")) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!loadDevicesFromComponents(info.gpios, "GPIO")) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!loadDevicesFromComponents(info.sensors, "Sensor")) {
+    return hardware_interface::CallbackReturn::ERROR;
   }
 
   state_handles_.clear();
@@ -410,64 +445,20 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
 void ModbusSystemInterface::pollThreadLoop()
 {
   const auto logger = rclcpp::get_logger("ModbusSystemInterface");
-  const bool has_realtime = realtime_tools::has_realtime_kernel();
-  try {
-    if (has_realtime) {
-      const auto lock_result = realtime_tools::lock_memory();
-      if (!lock_result.first) {
-        RCLCPP_WARN(logger, "Unable to lock poll thread memory: '%s'", lock_result.second.c_str());
-      } else {
-        RCLCPP_INFO(logger, "Poll thread: successfully locked memory");
-      }
-      if (!realtime_tools::configure_sched_fifo(thread_priority_)) {
-        RCLCPP_ERROR(
-          logger,
-          "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s). "
-          "See https://control.ros.org/doc/ros2_control/controller_manager/doc/userdoc.html for details.",
-          errno, strerror(errno));
-      } else {
-        RCLCPP_INFO(logger, "Poll thread set to FIFO RT scheduling with priority %d", thread_priority_);
-      }
-    } else {
-      constexpr int NON_RT_NICE = -20;
-      RCLCPP_WARN(logger, "No real-time kernel detected. Setting maximum nice priority for poll thread.");
-      if (setpriority(PRIO_PROCESS, 0, NON_RT_NICE) != 0) {
-        RCLCPP_WARN(logger, "Unable to set nice priority: '%s'. Continuing with default.", strerror(errno));
-      } else {
-        RCLCPP_INFO(logger, "Poll thread set to nice %d (non-RT)", -NON_RT_NICE);
-      }
-    }
+  applyRealtimeThreadParams(logger, thread_priority_, cpu_affinity_cores_);
 
-    if (!cpu_affinity_cores_.empty()) {
-      const auto affinity_result = realtime_tools::set_current_thread_affinity(cpu_affinity_cores_);
-      if (!affinity_result.first) {
-        RCLCPP_WARN(logger, "Unable to set poll thread CPU affinity: '%s'", affinity_result.second.c_str());
-      } else {
-        RCLCPP_INFO(logger, "Poll thread CPU affinity set (%zu core(s))", cpu_affinity_cores_.size());
-      }
-    }
-
-    if (has_realtime) {
-      // Preallocate stack to avoid stack overflow
-      constexpr size_t MAX_SAFE_STACK = 8 * 1024;  // 8 KiB
-      uint8_t dummy[MAX_SAFE_STACK];
-      memset(dummy, 0, sizeof(dummy));
-      (void)dummy;
-    }
-  } catch (const std::exception & e) {
-    RCLCPP_ERROR(logger, "Exception applying realtime thread params: %s", e.what());
-  } catch (...) {
-    RCLCPP_ERROR(logger, "Unknown exception applying realtime thread params");
-  }
-
-  const auto period = std::chrono::duration<double>(1.0 / poll_rate_hz_);
+  const bool use_poll_delay = (poll_rate_hz_ > 0.0);
+  const auto period = use_poll_delay
+    ? std::chrono::duration<double>(1.0 / poll_rate_hz_)
+    : std::chrono::duration<double>(0);
   modbus_t * ctx = getContext();
   if (!ctx) return;
 
   if (!init_registers_done_.exchange(true)) {
-    const auto logger = rclcpp::get_logger("ModbusSystemInterface");
-    for (const auto & dev : bus_config_.devices) {
+    for (size_t di = 0; di < bus_config_.devices.size(); ++di) {
+      const auto & dev = bus_config_.devices[di];
       if (dev.init_registers.empty()) continue;
+      setContextResponseTimeout(ctx, di);
       if (modbus_set_slave(ctx, dev.slave_id) < 0) {
         RCLCPP_WARN(logger, "Init registers: failed to set slave_id %d", dev.slave_id);
         continue;
@@ -489,6 +480,8 @@ void ModbusSystemInterface::pollThreadLoop()
   }
 
   while (poll_running_.load(std::memory_order_relaxed)) {
+    const auto iteration_start = std::chrono::steady_clock::now();
+
     readStateBatched(ctx, state_poll_buffer_);
     state_buffer_.writeFromNonRT(state_poll_buffer_);
 
@@ -496,7 +489,17 @@ void ModbusSystemInterface::pollThreadLoop()
     if (ptr && ptr->size() == command_handles_.size()) {
       writeCommandBatched(ctx, *ptr);
     }
-    std::this_thread::sleep_for(period);
+
+    if (use_poll_delay) {
+      const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - iteration_start);
+      const auto remaining = period - elapsed;
+      if (remaining.count() > 0) {
+        std::this_thread::sleep_for(remaining);
+      }
+      else {
+        RCLCPP_WARN(logger, "Poll delay: elapsed time %g > period %g", elapsed.count(), period.count());
+      }
+    }
   }
 }
 

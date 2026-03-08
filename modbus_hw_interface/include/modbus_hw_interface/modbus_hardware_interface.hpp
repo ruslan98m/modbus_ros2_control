@@ -61,11 +61,17 @@ public:
 
 private:
   bool loadBusFromParams(const hardware_interface::HardwareInfo & info);
+  /** Load Modbus device configs from components (joints/gpios/sensors); append to bus_config_.devices. */
+  bool loadDevicesFromComponents(
+    const std::vector<hardware_interface::ComponentInfo> & components,
+    const std::string & component_type);
   modbus_t * getContext();
   void closeContext();
   void buildBatchGroups();
   void readStateBatched(modbus_t * ctx, std::vector<double> & state_vals);
   void writeCommandBatched(modbus_t * ctx, const std::vector<double> & command_vals);
+  /** Set ctx response timeout from device config; no-op if device has response_timeout_sec <= 0. */
+  void setContextResponseTimeout(modbus_t * ctx, size_t device_index);
   void pollThreadLoop();
   void startPollThread();
   void stopPollThread();
@@ -78,7 +84,7 @@ private:
   std::thread poll_thread_;
   std::atomic<bool> poll_running_{false};
   std::atomic<bool> init_registers_done_{false};  // reset in on_activate, set after first init write
-  double poll_rate_hz_{50.0};
+  double poll_rate_hz_{0.0};  // 0 = no delay in poll loop (run as fast as possible)
   int thread_priority_{50};   // SCHED_FIFO 0-99 when RT kernel, else unused
   std::vector<int> cpu_affinity_cores_;  // empty = no affinity
 
@@ -94,49 +100,29 @@ private:
   std::vector<std::pair<std::string, RegisterHandle>> state_handles_;
   std::vector<std::pair<std::string, RegisterHandle>> command_handles_;
 
-  /** Precomputed read groups: one Modbus read per group, then decode into state_vals. */
-  struct ReadBatchItem
+  struct BatchItem
   {
-    size_t state_index;
-    int register_count;
-    RegisterDataType data_type;
-    const ModbusRegisterConfig * reg;  // for single-read path
-  };
-  struct ReadBatchGroup
-  {
-    int slave_id;
-    RegisterType type;
-    int start_address;
-    int total_count;
-    bool use_batch;
-    std::vector<ReadBatchItem> items;
-    /** Preallocated for Coil/DiscreteInput (no alloc in poll loop). */
-    std::vector<uint8_t> read_bits_buffer;
-    /** Preallocated for InputRegister/HoldingRegister (no alloc in poll loop). */
-    std::vector<uint16_t> read_reg_buffer;
-  };
-  std::vector<ReadBatchGroup> read_batch_groups_;
-
-  /** Precomputed write groups: one Modbus write per group from command_vals. */
-  struct WriteBatchItem
-  {
-    size_t command_index;
     int register_count;
     RegisterDataType data_type;
     const ModbusRegisterConfig * reg;
+    size_t index;
   };
-  struct WriteBatchGroup
+
+  struct BatchGroup
   {
+    size_t device_index;
     int slave_id;
     RegisterType type;
     int start_address;
     int total_count;
     bool use_batch;
-    std::vector<WriteBatchItem> items;
-    std::vector<uint16_t> write_reg_buffer;
-    std::vector<uint8_t> write_bits_buffer;
+    std::vector<BatchItem> items;
+    std::vector<uint8_t> bits_buffer;   // for coils/discrete inputs
+    std::vector<uint16_t> reg_buffer;   // for holding/input registers
   };
-  std::vector<WriteBatchGroup> write_batch_groups_;
+
+  std::vector<BatchGroup> read_batch_groups_;
+  std::vector<BatchGroup> write_batch_groups_;
 
   /** Reused in poll loop to avoid allocations (size = state_handles_.size()). */
   std::vector<double> state_poll_buffer_;

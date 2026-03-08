@@ -49,6 +49,8 @@ struct ModbusDeviceConfig
   bool read_multiple_coils{true};
   /** If true, use one Modbus request to write adjacent coils (FC15). Default true. */
   bool write_multiple_coils{true};
+  /** Response timeout in seconds (0 = use libmodbus default). */
+  double response_timeout_sec{0.0};
   std::vector<ModbusInitRegisterConfig> init_registers;  // written once at startup
   std::vector<ModbusRegisterConfig> registers;
 };
