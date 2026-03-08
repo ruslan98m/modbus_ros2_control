@@ -5,11 +5,9 @@
 
 #include <unistd.h>
 
-namespace modbus_tcp_test_server
-{
+namespace modbus_tcp_test_server {
 
-bool ModbusTcpTestServerRunner::open(int port, int slave_id)
-{
+bool ModbusTcpTestServerRunner::open(int port, int slave_id) {
   if (ctx_ != nullptr) {
     close();
   }
@@ -23,12 +21,27 @@ bool ModbusTcpTestServerRunner::open(int port, int slave_id)
   port_ = port;
   slave_id_ = slave_id;
 
-  mb_mapping_ = modbus_mapping_new(
-    NB_COILS, NB_DISCRETE_INPUTS, NB_HOLDING_REGISTERS, NB_INPUT_REGISTERS);
+  mb_mapping_ =
+      modbus_mapping_new(NB_COILS, NB_DISCRETE_INPUTS, NB_HOLDING_REGISTERS, NB_INPUT_REGISTERS);
   if (!mb_mapping_) {
     modbus_free(ctx_);
     ctx_ = nullptr;
     return false;
+  }
+
+  // Coils: value = address % 2 (even -> 0, odd -> 1)
+  for (int i = 0; i < NB_COILS; ++i) {
+    mb_mapping_->tab_bits[i] = static_cast<uint8_t>(i % 2);
+  }
+  for (int i = 0; i < NB_DISCRETE_INPUTS; ++i) {
+    mb_mapping_->tab_input_bits[i] = static_cast<uint8_t>(i % 2);
+  }
+  // Registers: value = address
+  for (int i = 0; i < NB_HOLDING_REGISTERS; ++i) {
+    mb_mapping_->tab_registers[i] = static_cast<uint16_t>(i);
+  }
+  for (int i = 0; i < NB_INPUT_REGISTERS; ++i) {
+    mb_mapping_->tab_input_registers[i] = static_cast<uint16_t>(i);
   }
 
   server_socket_ = modbus_tcp_listen(ctx_, 1);
@@ -43,8 +56,7 @@ bool ModbusTcpTestServerRunner::open(int port, int slave_id)
   return true;
 }
 
-void ModbusTcpTestServerRunner::run(std::atomic<bool> & running)
-{
+void ModbusTcpTestServerRunner::run(std::atomic<bool>& running) {
   if (ctx_ == nullptr || mb_mapping_ == nullptr) {
     return;
   }
@@ -80,12 +92,15 @@ void ModbusTcpTestServerRunner::run(std::atomic<bool> & running)
   }
 }
 
-void ModbusTcpTestServerRunner::close()
-{
+void ModbusTcpTestServerRunner::close_listen_socket() {
   if (server_socket_ >= 0) {
     ::close(server_socket_);
     server_socket_ = -1;
   }
+}
+
+void ModbusTcpTestServerRunner::close() {
+  close_listen_socket();
   if (mb_mapping_ != nullptr) {
     modbus_mapping_free(mb_mapping_);
     mb_mapping_ = nullptr;
@@ -96,8 +111,7 @@ void ModbusTcpTestServerRunner::close()
   }
 }
 
-void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool> & running)
-{
+void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool>& running) {
   ModbusTcpTestServerRunner runner;
   if (!runner.open(port, slave_id)) {
     return;

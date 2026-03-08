@@ -14,25 +14,21 @@
 #include "rclcpp/executors.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-namespace modbus_tcp_test_server
-{
+namespace modbus_tcp_test_server {
 
 constexpr int DEFAULT_PORT = 5502;
 constexpr int DEFAULT_SLAVE_ID = 1;
 
-class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode
-{
-public:
-  explicit ModbusTcpTestServerNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-  : LifecycleNode("modbus_tcp_test_server", options)
-  {
+class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode {
+ public:
+  explicit ModbusTcpTestServerNode(const rclcpp::NodeOptions &options = rclcpp::NodeOptions())
+      : LifecycleNode("modbus_tcp_test_server", options) {
     declare_parameter<int>("port", DEFAULT_PORT);
     declare_parameter<int>("slave_id", DEFAULT_SLAVE_ID);
   }
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_configure(
-    const rclcpp_lifecycle::State &) override
-  {
+      const rclcpp_lifecycle::State &) override {
     port_ = get_parameter("port").as_int();
     slave_id_ = get_parameter("slave_id").as_int();
     RCLCPP_INFO(get_logger(), "Configured: port=%d, slave_id=%d", port_, slave_id_);
@@ -40,21 +36,20 @@ public:
   }
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_activate(
-    const rclcpp_lifecycle::State &) override
-  {
+      const rclcpp_lifecycle::State &) override {
     if (!runner_.open(port_, slave_id_)) {
       RCLCPP_ERROR(get_logger(), "Failed to open Modbus TCP test server on port %d", port_);
       return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::ERROR;
     }
     running_.store(true);
     server_thread_ = std::thread([this]() { runner_.run(running_); });
-    RCLCPP_INFO(get_logger(), "Modbus TCP test server active on port %d, slave_id %d", port_, slave_id_);
+    RCLCPP_INFO(get_logger(), "Modbus TCP test server active on port %d, slave_id %d", port_,
+                slave_id_);
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
   }
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_deactivate(
-    const rclcpp_lifecycle::State &) override
-  {
+      const rclcpp_lifecycle::State &) override {
     running_.store(false);
     if (server_thread_.joinable()) {
       server_thread_.join();
@@ -65,14 +60,12 @@ public:
   }
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_cleanup(
-    const rclcpp_lifecycle::State &) override
-  {
+      const rclcpp_lifecycle::State &) override {
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
   }
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_shutdown(
-    const rclcpp_lifecycle::State &) override
-  {
+      const rclcpp_lifecycle::State &) override {
     running_.store(false);
     if (server_thread_.joinable()) {
       server_thread_.join();
@@ -81,7 +74,18 @@ public:
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
   }
 
-private:
+  ~ModbusTcpTestServerNode() {
+    // On SIGINT launch does not call on_deactivate/on_shutdown; ensure thread is stopped
+    // before runner_ is destroyed (otherwise joinable thread -> std::terminate).
+    running_.store(false);
+    runner_.close_listen_socket();
+    if (server_thread_.joinable()) {
+      server_thread_.join();
+    }
+    runner_.close();
+  }
+
+ private:
   int port_{DEFAULT_PORT};
   int slave_id_{DEFAULT_SLAVE_ID};
   std::atomic<bool> running_{false};
@@ -91,8 +95,7 @@ private:
 
 }  // namespace modbus_tcp_test_server
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
   rclcpp::executors::SingleThreadedExecutor executor;

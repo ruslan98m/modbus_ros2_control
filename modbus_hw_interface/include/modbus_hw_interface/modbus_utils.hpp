@@ -10,11 +10,12 @@
 #define MODBUS_HW_INTERFACE__MODBUS_UTILS_HPP_
 
 #include <string>
+#include <vector>
 
 #include "modbus_hw_interface/modbus_types.hpp"
+#include "rclcpp/logger.hpp"
 
-namespace modbus_hw_interface
-{
+namespace modbus_hw_interface {
 
 /**
  * Parse a string to RegisterDataType.
@@ -23,7 +24,7 @@ namespace modbus_hw_interface
  * @param s Input string from YAML or config.
  * @return Parsed type, or RegisterDataType::Uint16 if unknown.
  */
-RegisterDataType dataTypeFromString(const std::string & s);
+RegisterDataType dataTypeFromString(const std::string& s);
 
 /**
  * Parse a string to RegisterType.
@@ -32,7 +33,7 @@ RegisterDataType dataTypeFromString(const std::string & s);
  * @param s Input string from YAML or config.
  * @return Parsed type, or RegisterType::HoldingRegister if unknown.
  */
-RegisterType registerTypeFromString(const std::string & s);
+RegisterType registerTypeFromString(const std::string& s);
 
 /**
  * Return the canonical string for a data type (for interface export / logging).
@@ -47,6 +48,13 @@ std::string dataTypeToInterfaceString(RegisterDataType t);
  * @return 1 for 16-bit/bool, 2 for 32-bit/float32, 4 for 64-bit/float64.
  */
 int registerCountForDataType(RegisterDataType t);
+
+/**
+ * Apply realtime thread params for the current thread: lock memory, FIFO/nice priority,
+ * CPU affinity, stack preallocation. Logs to the given logger.
+ */
+void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
+                               const std::vector<int>& cpu_affinity_cores);
 
 }  // namespace modbus_hw_interface
 

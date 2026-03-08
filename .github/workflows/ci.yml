@@ -1,12 +1,9 @@
+---
 name: CI
-
 on:
   workflow_dispatch:
   push:
-    branches: [main, jazzy]
   pull_request:
-    branches: [main, jazzy]
-
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
@@ -15,7 +12,6 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
-
       - name: Install dependencies
         run: |
           apt-get update
@@ -32,17 +28,16 @@ jobs:
             ros-jazzy-launch-testing \
             ros-jazzy-launch-testing-ament-cmake \
             ros-jazzy-launch-testing-ros \
-            ros-jazzy-lifecycle-msgs
-
+            ros-jazzy-lifecycle-msgs \
+            ros-jazzy-ros2-controllers
       - name: Build
         run: |
           . /opt/ros/jazzy/setup.sh
           cd $GITHUB_WORKSPACE
           rosdep install -y --from-paths . --ignore-src -r || true
           colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-
       - name: Test
-        run: |
+        run: |-
           . /opt/ros/jazzy/setup.sh
           cd $GITHUB_WORKSPACE
           . install/setup.sh
