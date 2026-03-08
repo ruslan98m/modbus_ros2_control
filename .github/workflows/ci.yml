@@ -3,9 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, jazzy]
   pull_request:
-    branches: [main, jazzy]
 
 jobs:
   build-and-test:
