@@ -41,9 +41,6 @@ class ModbusDeviceConfigLoader {
   bool loadOptions(const std::string& path, const YAML::Node& root, ModbusDeviceConfig& out);
   bool loadInitRegisters(const std::string& path, const YAML::Node& root, ModbusDeviceConfig& out);
   bool loadRegisters(const std::string& path, const YAML::Node& root, ModbusDeviceConfig& out);
-  /** Check that register address ranges do not overlap within each type. */
-  bool validateNoRegisterOverlap(const std::string& path, const ModbusDeviceConfig& config);
-  /** Check that register names are unique. */
   bool validateNoDuplicateRegisterNames(const std::string& path, const ModbusDeviceConfig& config);
 };
 

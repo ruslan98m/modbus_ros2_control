@@ -89,25 +89,29 @@ Each device has its own YAML with a `registers` list.
 
 # Optional: written once at startup. Only coil and holding_register.
 init_registers:
-  - { type: "holding_register", address: 100, data_type: "uint16", value: 1 }
-  - { type: "coil", address: 0, data_type: "bool", value: true }
+  - { type: holding_register, address: 100, data_type: uint16, value: 1 }
+  - { type: coil, address: 0, data_type: bool, value: true }
 
+# Each register: type, address, exactly one of state_interface or command_interface (interface name).
+# input_register and discrete_input are read-only -> state_interface only.
+# Optional: factor, offset (value_ros = raw * factor + offset when reading; raw = (value_ros - offset) / factor when writing).
 registers:
-  - { name: "temperature", type: "input_register", address: 0, interface: "state", data_type: "int16" }
-  - { name: "setpoint", type: "holding_register", address: 0, interface: "command", data_type: "uint16" }
-  - { name: "relay", type: "coil", address: 0, interface: "command", data_type: "bool" }
+  - { type: input_register, address: 0, state_interface: temperature, data_type: int16, factor: 0.1 }
+  - { type: holding_register, address: 0, command_interface: setpoint, data_type: uint16, offset: 100 }
+  - { type: coil, address: 0, command_interface: relay, data_type: bool }
 ```
 
 - **init_registers** (optional): written once at startup; only `coil` and `holding_register`. Fields: `type`, `address`, `data_type`, `value`.
-- **registers**: `name`, `type`, `address`, `interface` (`state` or `command`), `data_type`.
-  - **type**: `coil`/`c`, `discrete_input`/`di`, `input_register`/`ir`, `holding_register`/`hr`.
-  - **data_type**: `bool`/`b`, `int16`/`i16`, `uint16`/`u16`, `int32`/`i32`, `uint32`/`u32`, `float32`/`f32`, `int64`/`i64`, `uint64`/`u64`, `float64`/`f64`. Case-insensitive.
+- **registers**: `type`, `address`, **state_interface** or **command_interface** (exactly one; value is the interface name), `data_type`. Optional: `factor`, `offset` for scaling.
+  - **type**: `coil`, `discrete_input`, `input_register`, `holding_register`.
+  - **state_interface** / **command_interface**: interface name string. Use only one per register. `input_register` and `discrete_input` are read-only → use `state_interface` only; `holding_register` and `coil` may use either.
+  - **data_type**: `bool`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `int64`, `uint64`, `float64`. Multi-register types: int32/uint32/float32 = 2 registers, int64/uint64/float64 = 4 (address = first register).
 
 ### Interface names
 
-Format: `<hardware_name>/<bus_name>_<device_name>_<register_name>`.
+Format: `<hardware_name>/<bus_name>_<device_name>_<interface_name>`.
 
-Examples: `ModbusTCP/tcp_bus_plc_1_temperature`, `ModbusRTU/rs485_bus_drive_1_speed`.
+The last part is the value of `state_interface` or `command_interface` from the register config. Examples: `ModbusTCP/tcp_bus_plc_1_temperature`, `ModbusRTU/rs485_bus_drive_1_speed`.
 
 ### Two buses (TCP + RS485)
 

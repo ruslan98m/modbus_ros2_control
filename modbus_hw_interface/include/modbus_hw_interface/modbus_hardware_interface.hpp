@@ -90,9 +90,9 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
   realtime_tools::RealtimeBuffer<std::vector<double>> command_buffer_;
 
   struct RegisterHandle {
-    int slave_id;
-    size_t device_index;
-    size_t reg_index;
+    uint8_t slave_id;
+    uint8_t device_index;
+    uint16_t reg_index;
   };
   std::vector<std::pair<std::string, RegisterHandle>> state_handles_;
   std::vector<std::pair<std::string, RegisterHandle>> command_handles_;
@@ -101,19 +101,19 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
     int register_count;
     RegisterDataType data_type;
     const ModbusRegisterConfig* reg;
-    size_t index;
+    uint16_t index;
   };
 
   struct BatchGroup {
-    size_t device_index;
-    int slave_id;
+    uint8_t device_index;
+    uint8_t slave_id;
     RegisterType type;
-    int start_address;
-    int total_count;
+    uint16_t start_address;
+    uint16_t total_count;
     bool use_batch;
     std::vector<BatchItem> items;
-    std::vector<uint8_t> bits_buffer;  // for coils/discrete inputs
-    std::vector<uint16_t> reg_buffer;  // for holding/input registers
+    /** Unified buffer: for coils/discrete_input bytes (1 per bit); for registers total_count*2 bytes (uint16_t each). */
+    std::vector<uint8_t> buffer;
   };
 
   std::vector<BatchGroup> read_batch_groups_;
