@@ -15,13 +15,19 @@ write_multiple_coils: true
 init_registers:
   - {type: holding_register, address: 100, data_type: uint16, value: 1}
   - {type: coil, address: 0, data_type: bool, value: true}
-# registers: name, type (input_register/holding_register/coil/discrete_input), address (start),
-#   interface (state/command), data_type. Multi-register types use address = first register:
+# registers: type (input_register/holding_register/coil/discrete_input), address (start),
+#   state_interface OR command_interface: interface name (exactly one per register).
+#   input_register and discrete_input are read-only -> state_interface only.
+#   holding_register and coil -> state_interface or command_interface.
+#   Optional: factor and offset — value_ros = raw * factor + offset (read); raw = (value_ros - offset) / factor (write).
+#   Multi-register types use address = first register:
 #   int16/uint16/bool = 1 reg; int32/uint32/float32 = 2 regs; int64/uint64/float64 = 4 regs.
 registers:
-  - {name: temperature, type: input_register, address: 0, interface: state, data_type: int16}
-  - {name: pressure, type: input_register, address: 1, interface: state, data_type: float32}
-  - {name: flow, type: input_register, address: 3, interface: state, data_type: float64}
-  - {name: counter, type: input_register, address: 7, interface: state, data_type: int32}
-  - {name: setpoint, type: holding_register, address: 0, interface: command, data_type: uint16}
-  - {name: relay, type: coil, address: 0, interface: command, data_type: bool}
+  - {type: input_register, address: 0, state_interface: temperature, data_type: int16,
+    factor: 0.1}
+  - {type: input_register, address: 1, state_interface: pressure, data_type: float32}
+  - {type: input_register, address: 3, state_interface: flow, data_type: float64}
+  - {type: input_register, address: 7, state_interface: counter, data_type: int32}
+  - {type: holding_register, address: 0, command_interface: setpoint, data_type: uint16,
+    offset: 100}
+  - {type: coil, address: 0, command_interface: relay, data_type: bool}

@@ -7,7 +7,7 @@
 
 namespace modbus_tcp_test_server {
 
-bool ModbusTcpTestServerRunner::open(int port, int slave_id) {
+bool ModbusTcpTestServerRunner::open(uint16_t port, uint8_t slave_id) {
   if (ctx_ != nullptr) {
     close();
   }
@@ -111,7 +111,7 @@ void ModbusTcpTestServerRunner::close() {
   }
 }
 
-void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool>& running) {
+void run_modbus_tcp_test_server(uint16_t port, uint8_t slave_id, std::atomic<bool>& running) {
   ModbusTcpTestServerRunner runner;
   if (!runner.open(port, slave_id)) {
     return;

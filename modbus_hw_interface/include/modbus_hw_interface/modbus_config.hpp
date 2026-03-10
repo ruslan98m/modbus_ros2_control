@@ -17,12 +17,14 @@
 namespace modbus_hw_interface {
 
 struct ModbusRegisterConfig {
-  std::string name;
   RegisterType type{RegisterType::HoldingRegister};
-  int address{0};
-  bool is_command{false};  // true = command interface, false = state interface
+  uint16_t address{0};
+  bool is_command{false}; // if true, expose on command interface (write).
+  std::string interface_name; // interface name (exactly one per register).
   RegisterDataType data_type{RegisterDataType::Uint16};
-  int register_count{1};  // 1 for 16-bit, 2 for 32-bit/float32, 4 for 64-bit
+  uint16_t register_count{1};  // 1 for 16-bit, 2 for 32-bit/float32, 4 for 64-bit
+  double factor{1.0};    // optional: value_ros = raw * factor + offset when reading
+  double offset{0.0};    // optional: when writing raw = (value_ros - offset) / factor
 };
 
 /** Written once at startup (on_activate) before polling. Only coil and holding_register are

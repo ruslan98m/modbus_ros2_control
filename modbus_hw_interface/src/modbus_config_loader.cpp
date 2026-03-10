@@ -37,7 +37,6 @@ bool ModbusDeviceConfigLoader::load(const std::string& path, ModbusDeviceConfig&
     if (!validateNoDuplicateRegisterNames(path, out)) {
       return false;
     }
-    validateNoRegisterOverlap(path, out);
 
     return true;
   } catch (const std::exception& e) {
@@ -119,75 +118,68 @@ bool ModbusDeviceConfigLoader::loadRegisters(const std::string& path, const YAML
   for (size_t i = 0; i < regs.size(); ++i) {
     const auto& r = regs[i];
     ModbusRegisterConfig reg;
-    reg.name = r["name"].as<std::string>("");
     reg.type = registerTypeFromString(r["type"].as<std::string>("holding_register"));
-    reg.address = r["address"].as<int>(0);
-    reg.is_command = r["interface"].as<std::string>("state") == "command";
-    reg.data_type = dataTypeFromString(r["data_type"].as<std::string>("uint16"));
-    reg.register_count = registerCountForDataType(reg.data_type);
-
-    if (reg.name.empty()) {
-      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: name must be non-empty",
+    const int addr = r["address"].as<int>(0);
+    if (addr < 0) {
+      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: address must be >= 0",
                    path.c_str(), i);
       return false;
     }
-    if (reg.address < 0) {
-      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu] '%s': address must be >= 0",
-                   path.c_str(), i, reg.name.c_str());
+    reg.address = static_cast<uint16_t>(addr);
+
+    const bool has_command = r["command_interface"].IsDefined();
+    const bool has_state = r["state_interface"].IsDefined();
+    if(has_command && has_state) {
+      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: cannot have both state_interface and command_interface (use only one)", path.c_str(), i);
       return false;
+    }
+    else if(!has_command && !has_state) {
+      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: must have either state_interface or command_interface (interface name)", path.c_str(), i);
+      return false;
+    }
+    reg.interface_name = has_command ? r["command_interface"].as<std::string>("") : r["state_interface"].as<std::string>("");
+    reg.is_command = has_command;
+    reg.data_type = dataTypeFromString(r["data_type"].as<std::string>("uint16"));
+    reg.register_count = static_cast<uint16_t>(registerCountForDataType(reg.data_type));
+    if (r["factor"].IsDefined()) {
+      reg.factor = r["factor"].as<double>(1.0);
+    }
+    if (r["offset"].IsDefined()) {
+      reg.offset = r["offset"].as<double>(0.0);
+    }
+
+    if (reg.type == RegisterType::InputRegister || reg.type == RegisterType::DiscreteInput) {
+      if (has_command) {
+        RCLCPP_ERROR(logger_,
+                     "Device config '%s': registers[%zu]: input_register and discrete_input are "
+                     "read-only, use state_interface only (not command_interface)",
+                     path.c_str(), i);
+        return false;
+      }
     }
     out.registers.push_back(reg);
   }
   return true;
 }
 
-bool ModbusDeviceConfigLoader::validateNoRegisterOverlap(const std::string& path,
-                                                         const ModbusDeviceConfig& config) {
-  struct RegRange {
-    int address;
-    int register_count;
-    std::string name;
-    int end() const {
-      return address + register_count;
-    }
-  };
-
-  const auto& regs = config.registers;
-  for (int t = 0; t < 4; ++t) {
-    const auto type = static_cast<RegisterType>(t);
-    std::vector<RegRange> by_type;
-    by_type.reserve(regs.size());
-    for (const auto& r : regs) {
-      if (r.type == type) {
-        by_type.push_back({r.address, r.register_count, r.name});
-      }
-    }
-    std::sort(by_type.begin(), by_type.end(),
-              [](const RegRange& a, const RegRange& b) { return a.address < b.address; });
-
-    const auto it = std::adjacent_find(
-        by_type.begin(), by_type.end(),
-        [](const RegRange& a, const RegRange& b) { return a.end() > b.address; });
-    if (it != by_type.end()) {
-      const auto& a = *it;
-      const auto& b = *(it + 1);
-      RCLCPP_WARN(logger_, "Device config '%s': register overlap: '%s' [%d, %d) and '%s' [%d, %d)",
-                  path.c_str(), a.name.c_str(), a.address, a.end(), b.name.c_str(), b.address,
-                  b.end());
-      return false;
-    }
-  }
-  return true;
-}
 
 bool ModbusDeviceConfigLoader::validateNoDuplicateRegisterNames(const std::string& path,
                                                                 const ModbusDeviceConfig& config) {
-  std::unordered_set<std::string> seen;
+  std::unordered_set<std::string> seen_state;
+  std::unordered_set<std::string> seen_command;
   for (const auto& r : config.registers) {
-    if (!seen.insert(r.name).second) {
-      RCLCPP_ERROR(logger_, "Device config '%s': duplicate register name '%s'", path.c_str(),
-                   r.name.c_str());
-      return false;
+    if (r.is_command) {
+      if (!seen_command.insert(r.interface_name).second) {
+        RCLCPP_ERROR(logger_, "Device config '%s': duplicate command_interface name '%s'",
+                     path.c_str(), r.interface_name.c_str());
+        return false;
+      }
+    } else {
+      if (!seen_state.insert(r.interface_name).second) {
+        RCLCPP_ERROR(logger_, "Device config '%s': duplicate state_interface name '%s'",
+                     path.c_str(), r.interface_name.c_str());
+        return false;
+      }
     }
   }
   return true;

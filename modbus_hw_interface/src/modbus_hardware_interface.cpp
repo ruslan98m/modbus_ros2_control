@@ -145,7 +145,7 @@ void ModbusSystemInterface::buildBatchGroups() {
     std::map<std::pair<int, size_t>, std::vector<size_t>> by_device;
     for (size_t i = 0; i < state_handles_.size(); ++i) {
       const auto &h = state_handles_[i].second;
-      by_device[{h.slave_id, h.device_index}].push_back(i);
+      by_device[{static_cast<int>(h.slave_id), static_cast<size_t>(h.device_index)}].push_back(i);
     }
     for (const auto &[key, indices] : by_device) {
       const int slave_id = key.first;
@@ -166,10 +166,10 @@ void ModbusSystemInterface::buildBatchGroups() {
         const RegisterType cur_type = items[i].second->type;
         int cur_addr = items[i].second->address;
         BatchGroup grp;
-        grp.device_index = dev_idx;
-        grp.slave_id = slave_id;
+        grp.device_index = static_cast<uint8_t>(dev_idx);
+        grp.slave_id = static_cast<uint8_t>(slave_id);
         grp.type = cur_type;
-        grp.start_address = cur_addr;
+        grp.start_address = static_cast<uint16_t>(cur_addr);
         grp.total_count = 0;
         grp.use_batch = (cur_type == RegisterType::Coil || cur_type == RegisterType::DiscreteInput)
                             ? dev.read_multiple_coils
@@ -177,16 +177,17 @@ void ModbusSystemInterface::buildBatchGroups() {
         while (i < items.size() && items[i].second->type == cur_type &&
                items[i].second->address == cur_addr) {
           const auto *reg = items[i].second;
-          grp.items.push_back({reg->register_count, reg->data_type, reg, items[i].first});
-          grp.total_count += reg->register_count;
+          grp.items.push_back({reg->register_count, reg->data_type, reg,
+                               static_cast<uint16_t>(items[i].first)});
+          grp.total_count += static_cast<uint16_t>(reg->register_count);
           cur_addr += reg->register_count;
           ++i;
         }
         if (grp.use_batch && grp.total_count > 0) {
           if (cur_type == RegisterType::Coil || cur_type == RegisterType::DiscreteInput) {
-            grp.bits_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.buffer.resize(static_cast<size_t>(grp.total_count));
           } else {
-            grp.reg_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.buffer.resize(static_cast<size_t>(grp.total_count) * sizeof(uint16_t));
           }
         }
         read_batch_groups_.push_back(std::move(grp));
@@ -198,7 +199,7 @@ void ModbusSystemInterface::buildBatchGroups() {
     std::map<std::pair<int, size_t>, std::vector<size_t>> by_device;
     for (size_t i = 0; i < command_handles_.size(); ++i) {
       const auto &h = command_handles_[i].second;
-      by_device[{h.slave_id, h.device_index}].push_back(i);
+      by_device[{static_cast<int>(h.slave_id), static_cast<size_t>(h.device_index)}].push_back(i);
     }
     for (const auto &[key, indices] : by_device) {
       const int slave_id = key.first;
@@ -217,14 +218,14 @@ void ModbusSystemInterface::buildBatchGroups() {
       });
       for (size_t i = 0; i < items.size();) {
         const RegisterType cur_type = items[i].second->type;
-        int cur_addr = items[i].second->address;
+        uint16_t cur_addr = items[i].second->address;
         if (cur_type == RegisterType::DiscreteInput || cur_type == RegisterType::InputRegister) {
           ++i;
           continue;
         }
         BatchGroup grp;
-        grp.device_index = dev_idx;
-        grp.slave_id = slave_id;
+        grp.device_index = static_cast<uint8_t>(dev_idx);
+        grp.slave_id = static_cast<uint8_t>(slave_id);
         grp.type = cur_type;
         grp.start_address = cur_addr;
         grp.total_count = 0;
@@ -233,16 +234,17 @@ void ModbusSystemInterface::buildBatchGroups() {
         while (i < items.size() && items[i].second->type == cur_type &&
                items[i].second->address == cur_addr) {
           const auto *reg = items[i].second;
-          grp.items.push_back({reg->register_count, reg->data_type, reg, items[i].first});
-          grp.total_count += reg->register_count;
+          grp.items.push_back({reg->register_count, reg->data_type, reg,
+                               static_cast<uint16_t>(items[i].first)});
+          grp.total_count += static_cast<uint16_t>(reg->register_count);
           cur_addr += reg->register_count;
           ++i;
         }
         if (grp.use_batch && grp.total_count > 0) {
           if (cur_type == RegisterType::HoldingRegister) {
-            grp.reg_buffer.resize(static_cast<size_t>(grp.total_count));
+            grp.buffer.resize(static_cast<size_t>(grp.total_count) * sizeof(uint16_t));
           } else if (cur_type == RegisterType::Coil) {
-            grp.bits_buffer.resize(grp.items.size());
+            grp.buffer.resize(grp.items.size());
           }
         }
         write_batch_groups_.push_back(std::move(grp));
@@ -261,39 +263,37 @@ void ModbusSystemInterface::readStateBatched(modbus_t *ctx, std::vector<double> 
     return;
   std::fill(state_vals.begin(), state_vals.end(), 0.0);
   for (auto &grp : read_batch_groups_) {
-    setContextResponseTimeout(ctx, grp.device_index);
-    if (modbus_set_slave(ctx, grp.slave_id) < 0)
+    setContextResponseTimeout(ctx, static_cast<size_t>(grp.device_index));
+    if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
       continue;
-    if (grp.use_batch && grp.total_count > 0) {
-      if (grp.type == RegisterType::Coil && !grp.bits_buffer.empty()) {
-        if (modbus_read_bits(ctx, grp.start_address, grp.total_count, grp.bits_buffer.data()) ==
-            grp.total_count) {
+    if (grp.use_batch && grp.total_count > 0 && !grp.buffer.empty()) {
+      if (grp.type == RegisterType::Coil) {
+        if (modbus_read_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
+            static_cast<int>(grp.total_count)) {
           size_t off = 0;
           for (const auto &it : grp.items) {
-            state_vals[it.index] = grp.bits_buffer[off] ? 1.0 : 0.0;
+            state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
             off += static_cast<size_t>(it.register_count);
           }
         }
-      } else if (grp.type == RegisterType::DiscreteInput && !grp.bits_buffer.empty()) {
-        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count,
-                                   grp.bits_buffer.data()) == grp.total_count) {
+      } else if (grp.type == RegisterType::DiscreteInput) {
+        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
+            static_cast<int>(grp.total_count)) {
           size_t off = 0;
           for (const auto &it : grp.items) {
-            state_vals[it.index] = grp.bits_buffer[off] ? 1.0 : 0.0;
+            state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
             off += static_cast<size_t>(it.register_count);
           }
         }
-      } else if (!grp.reg_buffer.empty()) {
+      } else {
+        uint16_t *regs = reinterpret_cast<uint16_t *>(grp.buffer.data());
         int ret = (grp.type == RegisterType::InputRegister)
-                      ? modbus_read_input_registers(ctx, grp.start_address, grp.total_count,
-                                                    grp.reg_buffer.data())
-                      : modbus_read_registers(ctx, grp.start_address, grp.total_count,
-                                              grp.reg_buffer.data());
-        if (ret == grp.total_count) {
+                      ? modbus_read_input_registers(ctx, grp.start_address, grp.total_count, regs)
+                      : modbus_read_registers(ctx, grp.start_address, grp.total_count, regs);
+        if (ret == static_cast<int>(grp.total_count)) {
           size_t off = 0;
           for (const auto &it : grp.items) {
-            state_vals[it.index] = decodeRegistersFromBuffer(grp.reg_buffer.data(), off,
-                                                             it.register_count, it.data_type);
+            state_vals[it.index] = decodeRegistersFromBuffer(regs, off, it.register_count, it.data_type);
             off += static_cast<size_t>(it.register_count);
           }
         }
@@ -311,19 +311,20 @@ void ModbusSystemInterface::writeCommandBatched(modbus_t *ctx,
   if (command_vals.size() != command_handles_.size())
     return;
   for (auto &grp : write_batch_groups_) {
-    setContextResponseTimeout(ctx, grp.device_index);
-    if (modbus_set_slave(ctx, grp.slave_id) < 0)
+    setContextResponseTimeout(ctx, static_cast<size_t>(grp.device_index));
+    if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
       continue;
     if (grp.use_batch && grp.total_count > 0 && grp.type == RegisterType::HoldingRegister &&
-        !grp.reg_buffer.empty()) {
+        !grp.buffer.empty()) {
+      uint16_t *regs = reinterpret_cast<uint16_t *>(grp.buffer.data());
       size_t off = 0;
       for (const auto &it : grp.items) {
         const double val = command_vals[it.index];
         const ModbusRegisterConfig *reg = it.reg;
         if (reg->register_count == 1) {
-          grp.reg_buffer[off] = (reg->data_type == RegisterDataType::Int16)
-                                    ? static_cast<uint16_t>(static_cast<int16_t>(val))
-                                    : static_cast<uint16_t>(val);
+          regs[off] = (reg->data_type == RegisterDataType::Int16)
+                          ? static_cast<uint16_t>(static_cast<int16_t>(val))
+                          : static_cast<uint16_t>(val);
         } else if (reg->register_count == 2) {
           uint32_t u32;
           if (reg->data_type == RegisterDataType::Float32) {
@@ -332,8 +333,8 @@ void ModbusSystemInterface::writeCommandBatched(modbus_t *ctx,
           } else {
             u32 = static_cast<uint32_t>(val);
           }
-          grp.reg_buffer[off] = static_cast<uint16_t>(u32 >> 16);
-          grp.reg_buffer[off + 1] = static_cast<uint16_t>(u32 & 0xFFFF);
+          regs[off] = static_cast<uint16_t>(u32 >> 16);
+          regs[off + 1] = static_cast<uint16_t>(u32 & 0xFFFF);
         } else if (reg->register_count == 4) {
           uint64_t u64;
           if (reg->data_type == RegisterDataType::Float64) {
@@ -343,20 +344,19 @@ void ModbusSystemInterface::writeCommandBatched(modbus_t *ctx,
           } else {
             u64 = static_cast<uint64_t>(val);
           }
-          grp.reg_buffer[off] = static_cast<uint16_t>(u64 >> 48);
-          grp.reg_buffer[off + 1] = static_cast<uint16_t>((u64 >> 32) & 0xFFFF);
-          grp.reg_buffer[off + 2] = static_cast<uint16_t>((u64 >> 16) & 0xFFFF);
-          grp.reg_buffer[off + 3] = static_cast<uint16_t>(u64 & 0xFFFF);
+          regs[off] = static_cast<uint16_t>(u64 >> 48);
+          regs[off + 1] = static_cast<uint16_t>((u64 >> 32) & 0xFFFF);
+          regs[off + 2] = static_cast<uint16_t>((u64 >> 16) & 0xFFFF);
+          regs[off + 3] = static_cast<uint16_t>(u64 & 0xFFFF);
         }
         off += static_cast<size_t>(reg->register_count);
       }
-      modbus_write_registers(ctx, grp.start_address, grp.total_count, grp.reg_buffer.data());
-    } else if (grp.use_batch && grp.type == RegisterType::Coil && !grp.bits_buffer.empty()) {
-      for (size_t g = 0; g < grp.bits_buffer.size(); ++g) {
-        grp.bits_buffer[g] = (std::fabs(command_vals[grp.items[g].index]) > 0.5) ? 1 : 0;
+      modbus_write_registers(ctx, grp.start_address, grp.total_count, regs);
+    } else if (grp.use_batch && grp.type == RegisterType::Coil && !grp.buffer.empty()) {
+      for (size_t g = 0; g < grp.buffer.size(); ++g) {
+        grp.buffer[g] = (std::fabs(command_vals[grp.items[g].index]) > 0.5) ? 1 : 0;
       }
-      modbus_write_bits(ctx, grp.start_address, static_cast<int>(grp.bits_buffer.size()),
-                        grp.bits_buffer.data());
+      modbus_write_bits(ctx, grp.start_address, static_cast<int>(grp.buffer.size()), grp.buffer.data());
     } else {
       for (const auto &it : grp.items) {
         writeRegisterValue(ctx, *it.reg, command_vals[it.index]);
@@ -430,12 +430,14 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
     std::string dev_prefix = bus_config_.bus_name + "_" + dev.name;
     for (size_t ri = 0; ri < dev.registers.size(); ++ri) {
       const auto &reg = dev.registers[ri];
-      std::string if_name = dev_prefix + "_" + reg.name;
+      std::string if_name = dev_prefix + "_" + reg.interface_name;
       std::string full_name = hardware_name_ + "/" + if_name;
       if (reg.is_command) {
-        command_handles_.push_back({full_name, {dev.slave_id, di, ri}});
+        command_handles_.push_back(
+            {full_name, {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di), static_cast<uint16_t>(ri)}});
       } else {
-        state_handles_.push_back({full_name, {dev.slave_id, di, ri}});
+        state_handles_.push_back(
+            {full_name, {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di), static_cast<uint16_t>(ri)}});
       }
     }
   }
@@ -472,9 +474,9 @@ void ModbusSystemInterface::pollThreadLoop() {
       for (const auto &init : dev.init_registers) {
         ModbusRegisterConfig reg;
         reg.type = init.type;
-        reg.address = init.address;
+        reg.address = static_cast<uint16_t>(init.address);
         reg.data_type = init.data_type;
-        reg.register_count = init.register_count;
+        reg.register_count = static_cast<uint16_t>(init.register_count);
         if (modbus_hw_interface::writeRegisterValue(ctx, reg, init.value)) {
           RCLCPP_DEBUG(logger, "Init write dev '%s' addr %d = %g", dev.name.c_str(), init.address,
                        init.value);
@@ -532,7 +534,7 @@ ModbusSystemInterface::export_unlisted_state_interface_descriptions() {
   for (const auto &[full_name, h] : state_handles_) {
     const auto &reg = bus_config_.devices[h.device_index].registers[h.reg_index];
     const auto &dev = bus_config_.devices[h.device_index];
-    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.name;
+    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.interface_name;
     hardware_interface::InterfaceInfo inf;
     inf.name = if_name;
     inf.data_type = "double";
@@ -547,7 +549,7 @@ ModbusSystemInterface::export_unlisted_command_interface_descriptions() {
   for (const auto &[full_name, h] : command_handles_) {
     const auto &reg = bus_config_.devices[h.device_index].registers[h.reg_index];
     const auto &dev = bus_config_.devices[h.device_index];
-    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.name;
+    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.interface_name;
     hardware_interface::InterfaceInfo inf;
     inf.name = if_name;
     inf.data_type = "double";

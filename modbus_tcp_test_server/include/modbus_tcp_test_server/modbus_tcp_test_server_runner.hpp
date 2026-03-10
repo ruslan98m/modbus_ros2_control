@@ -43,7 +43,7 @@ class ModbusTcpTestServerRunner {
    * @param slave_id Modbus slave ID (e.g. 1).
    * @return true if context and mapping were created and listen succeeded, false on error.
    */
-  bool open(int port, int slave_id);
+  bool open(uint16_t port, uint8_t slave_id);
 
   /**
    * @brief Run the accept/receive/reply loop in the current thread.
@@ -120,7 +120,7 @@ class ModbusTcpTestServerRunner {
  * @param slave_id Modbus slave ID (e.g. 1).
  * @param running Set to false to stop the server loop.
  */
-void run_modbus_tcp_test_server(int port, int slave_id, std::atomic<bool> &running);
+void run_modbus_tcp_test_server(uint16_t port, uint8_t slave_id, std::atomic<bool> &running);
 
 }  // namespace modbus_tcp_test_server
 
