@@ -7,7 +7,9 @@
  */
 
 #include <modbus_tcp_test_server/modbus_tcp_test_server_runner.hpp>
+#include <pthread.h>
 
+#include <csignal>
 #include <memory>
 #include <thread>
 
@@ -42,7 +44,13 @@ class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode {
       return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::ERROR;
     }
     running_.store(true);
-    server_thread_ = std::thread([this]() { runner_.run(running_); });
+    server_thread_ = std::thread([this]() {
+      sigset_t mask;
+      sigemptyset(&mask);
+      sigaddset(&mask, SIGINT);
+      pthread_sigmask(SIG_BLOCK, &mask, nullptr);
+      runner_.run(running_);
+    });
     RCLCPP_INFO(get_logger(), "Modbus TCP test server active on port %d, slave_id %d", port_,
                 slave_id_);
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
