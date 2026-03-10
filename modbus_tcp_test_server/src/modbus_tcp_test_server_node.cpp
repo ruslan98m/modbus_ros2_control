@@ -18,8 +18,8 @@
 
 namespace modbus_tcp_test_server {
 
-constexpr int DEFAULT_PORT = 5502;
-constexpr int DEFAULT_SLAVE_ID = 1;
+constexpr uint16_t DEFAULT_PORT = 5502;
+constexpr uint8_t DEFAULT_SLAVE_ID = 1;
 
 class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode {
  public:
@@ -31,8 +31,8 @@ class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode {
 
   rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_configure(
       const rclcpp_lifecycle::State &) override {
-    port_ = get_parameter("port").as_int();
-    slave_id_ = get_parameter("slave_id").as_int();
+    port_ = static_cast<uint16_t>(get_parameter("port").as_int());
+    slave_id_ = static_cast<uint8_t>(get_parameter("slave_id").as_int());
     RCLCPP_INFO(get_logger(), "Configured: port=%d, slave_id=%d", port_, slave_id_);
     return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
   }
@@ -94,8 +94,8 @@ class ModbusTcpTestServerNode : public rclcpp_lifecycle::LifecycleNode {
   }
 
  private:
-  int port_{DEFAULT_PORT};
-  int slave_id_{DEFAULT_SLAVE_ID};
+  uint16_t port_{DEFAULT_PORT};
+  uint8_t slave_id_{DEFAULT_SLAVE_ID};
   std::atomic<bool> running_{false};
   std::thread server_thread_;
   ModbusTcpTestServerRunner runner_;
