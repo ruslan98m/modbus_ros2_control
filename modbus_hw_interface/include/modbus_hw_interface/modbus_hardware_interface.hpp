@@ -14,7 +14,7 @@
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_component_interface_params.hpp"
 #include "modbus_hw_interface/modbus_config.hpp"
-#include "modbus_master/batch_group.hpp"
+#include "modbus_slave_plugins/batch_group.hpp"
 #include "modbus_master/modbus_master.hpp"
 #include "modbus_slave_plugins/modbus_slave_interface.hpp"
 #include "pluginlib/class_loader.hpp"
@@ -83,8 +83,8 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
   std::vector<std::pair<std::string, RegisterHandle>> state_handles_;
   std::vector<std::pair<std::string, RegisterHandle>> command_handles_;
 
-  std::vector<modbus_master::BatchGroup> read_batch_groups_;
-  std::vector<modbus_master::BatchGroup> write_batch_groups_;
+  std::vector<modbus_slave_plugins::BatchGroup> read_batch_groups_;
+  std::vector<modbus_slave_plugins::BatchGroup> write_batch_groups_;
 
   /** Pre-allocated for write() RT path (size = command_handles_.size()). */
   std::vector<double> cmd_vals_;

@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "modbus_slave_plugins/batch_group.hpp"
 #include "modbus_slave_plugins/modbus_device_config.hpp"
 
 namespace modbus_hw_interface {
@@ -76,6 +77,25 @@ class ModbusSlaveInterface {
   const std::vector<InterfaceNameIndex>& commandInterfaces() const { return command_interfaces_; }
   const std::vector<std::string>& stateNames() const { return state_names_; }
   const std::vector<std::string>& commandNames() const { return command_names_; }
+
+  /**
+   * Build read (state) batch groups for this device. Called by HW interface during buildBatchGroups().
+   * Returns ready-to-use BatchGroup with buffer allocated.
+   */
+  std::vector<modbus_slave_plugins::BatchGroup> buildReadBatchGroups(
+      uint8_t device_index,
+      uint8_t slave_id,
+      const ModbusDeviceConfig& dev,
+      const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const;
+
+  /**
+   * Build write (command) batch groups for this device. Skips read-only types.
+   */
+  std::vector<modbus_slave_plugins::BatchGroup> buildWriteBatchGroups(
+      uint8_t device_index,
+      uint8_t slave_id,
+      const ModbusDeviceConfig& dev,
+      const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const;
 
   /**
    * Update state interfaces (used internally by readState). Override for custom mapping.

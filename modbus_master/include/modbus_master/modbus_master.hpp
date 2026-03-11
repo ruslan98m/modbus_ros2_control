@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "modbus_master/batch_group.hpp"
+#include "modbus_slave_plugins/batch_group.hpp"
 #include "realtime_tools/realtime_buffer.hpp"
 #include "modbus_master/connection_params.hpp"
 #include "modbus_master/master_params.hpp"
@@ -19,6 +19,8 @@
 #include <modbus/modbus.h>
 
 namespace modbus_master {
+
+using BatchGroup = modbus_slave_plugins::BatchGroup;
 
 struct ModbusContextDeleter {
   void operator()(modbus_t* p) const {
