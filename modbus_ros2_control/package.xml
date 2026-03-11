@@ -9,11 +9,9 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <build_depend>modbus_hw_interface</build_depend>
-  <build_depend>modbus_tcp_test_server</build_depend>
-
-  <exec_depend>modbus_hw_interface</exec_depend>
-  <exec_depend>modbus_tcp_test_server</exec_depend>
+  <depend>modbus_hw_interface</depend>
+  <depend>modbus_tcp_test_server</depend>
+  <depend>modbus_ros2_control_examples</depend>
 
   <test_depend>controller_manager</test_depend>
   <test_depend>controller_manager_msgs</test_depend>

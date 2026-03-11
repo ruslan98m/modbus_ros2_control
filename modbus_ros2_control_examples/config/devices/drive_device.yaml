@@ -1,0 +1,10 @@
+---
+# Example device config for RTU bus (e.g. drive). Customize for your hardware.
+response_timeout_sec: 1.0
+read_multiple_registers: true
+write_multiple_registers: true
+read_multiple_coils: true
+write_multiple_coils: true
+registers:
+  - {type: holding_register, address: 0, command_interface: command, data_type: int16}
+  - {type: input_register, address: 0, state_interface: position, data_type: int32}

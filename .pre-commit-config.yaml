@@ -31,11 +31,11 @@ repos:
       - id: yamlfix
         exclude: ^\.(pre-commit-config\.yaml|clang-format)$
 
+  # C/C++: format with clang-format (runs on all .cpp, .hpp, .c, .h; fixes in place)
   - repo: local
     hooks:
       - id: clang-format
         name: clang-format
-        entry: clang-format-14
+        entry: clang-format-14 --style=file -i
         language: system
-        types: [c++, c]
-        args: [--style=file, -i]
+        files: '\.(cpp|hpp|c|h)$'

@@ -3,8 +3,6 @@
 
 #include "modbus_slave_plugins/modbus_utils.hpp"
 
-#include <sys/resource.h>
-
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -13,7 +11,6 @@
 #include <unordered_map>
 
 #include "rclcpp/rclcpp.hpp"
-#include "realtime_tools/realtime_helpers.hpp"
 
 namespace modbus_hw_interface {
 
@@ -85,60 +82,6 @@ std::string dataTypeToInterfaceString(RegisterDataType t) {
 int registerCountForDataType(RegisterDataType t) {
   auto it = DATA_TYPE_TO_REG_COUNT.find(t);
   return (it != DATA_TYPE_TO_REG_COUNT.end()) ? it->second : 1;
-}
-
-void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
-                               const std::vector<int>& cpu_affinity_cores) {
-  const bool has_realtime = realtime_tools::has_realtime_kernel();
-  try {
-    if (has_realtime) {
-      const auto lock_result = realtime_tools::lock_memory();
-      if (!lock_result.first) {
-        RCLCPP_WARN(logger, "Unable to lock poll thread memory: '%s'", lock_result.second.c_str());
-      } else {
-        RCLCPP_INFO(logger, "Poll thread: successfully locked memory");
-      }
-      if (!realtime_tools::configure_sched_fifo(thread_priority)) {
-        RCLCPP_ERROR(
-            logger,
-            "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s).",
-            errno, strerror(errno));
-      } else {
-        RCLCPP_INFO(logger, "Poll thread set to FIFO RT scheduling with priority %d",
-                    thread_priority);
-      }
-    } else {
-      constexpr int NON_RT_NICE = -20;
-      RCLCPP_WARN(logger,
-                  "No real-time kernel detected. Setting maximum nice priority for poll thread.");
-      if (setpriority(PRIO_PROCESS, 0, NON_RT_NICE) != 0) {
-        RCLCPP_WARN(logger, "Unable to set nice priority: '%s'. Continuing with default.",
-                    strerror(errno));
-      } else {
-        RCLCPP_INFO(logger, "Poll thread set to nice %d (non-RT)", -NON_RT_NICE);
-      }
-    }
-    if (!cpu_affinity_cores.empty()) {
-      const auto affinity_result = realtime_tools::set_current_thread_affinity(cpu_affinity_cores);
-      if (!affinity_result.first) {
-        RCLCPP_WARN(logger, "Unable to set poll thread CPU affinity: '%s'",
-                    affinity_result.second.c_str());
-      } else {
-        RCLCPP_INFO(logger, "Poll thread CPU affinity set (%zu core(s))",
-                    cpu_affinity_cores.size());
-      }
-    }
-    if (has_realtime) {
-      constexpr size_t MAX_SAFE_STACK = 8 * 1024;
-      uint8_t dummy[MAX_SAFE_STACK];
-      std::memset(dummy, 0, sizeof(dummy));
-      (void)dummy;
-    }
-  } catch (const std::exception& e) {
-    RCLCPP_ERROR(logger, "Exception applying realtime thread params: %s", e.what());
-  } catch (...) {
-    RCLCPP_ERROR(logger, "Unknown exception applying realtime thread params");
-  }
 }
 
 }  // namespace modbus_hw_interface

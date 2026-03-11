@@ -1,13 +1,13 @@
-// Copyright 2025 modbus_slave_plugins contributors.
+// Copyright 2025 modbus_slave_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
  * @file modbus_types.hpp
- * @brief Modbus register and data type enums (provided by modbus_slave_plugins for slave interface).
+ * @brief Modbus register and data type enums for slave interface.
  */
 
-#ifndef MODBUS_HW_INTERFACE__MODBUS_TYPES_HPP_
-#define MODBUS_HW_INTERFACE__MODBUS_TYPES_HPP_
+#ifndef MODBUS_SLAVE_INTERFACE__MODBUS_TYPES_HPP_
+#define MODBUS_SLAVE_INTERFACE__MODBUS_TYPES_HPP_
 
 #include <cstddef>
 
@@ -39,4 +39,4 @@ struct RegisterDataTypeHash {
 
 }  // namespace modbus_hw_interface
 
-#endif  // MODBUS_HW_INTERFACE__MODBUS_TYPES_HPP_
+#endif  // MODBUS_SLAVE_INTERFACE__MODBUS_TYPES_HPP_

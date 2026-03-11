@@ -3,16 +3,19 @@
 
 #include "modbus_master/modbus_master.hpp"
 
+#include <modbus/modbus.h>
+
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 
-#include "modbus_slave_plugins/modbus_device_config.hpp"
-#include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_master/modbus_master_helpers.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_types.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include <modbus/modbus.h>
 
 namespace modbus_master {
 
@@ -21,174 +24,6 @@ using modbus_hw_interface::ModbusInitRegisterConfig;
 using modbus_hw_interface::ModbusRegisterConfig;
 using modbus_hw_interface::RegisterDataType;
 using modbus_hw_interface::RegisterType;
-
-namespace {
-
-double decodeRegistersFromBuffer(const uint16_t* tab, size_t offset, int register_count,
-                                 RegisterDataType data_type) {
-  if (register_count == 1) {
-    if (data_type == RegisterDataType::Int16) {
-      return static_cast<double>(static_cast<int16_t>(tab[offset]));
-    }
-    return static_cast<double>(tab[offset]);
-  }
-  if (register_count == 2) {
-    const uint32_t u32 = (static_cast<uint32_t>(tab[offset]) << 16) | tab[offset + 1];
-    if (data_type == RegisterDataType::Float32) {
-      float f;
-      memcpy(&f, &u32, 4);
-      return static_cast<double>(f);
-    }
-    if (data_type == RegisterDataType::Int32) {
-      return static_cast<double>(static_cast<int32_t>(u32));
-    }
-    return static_cast<double>(u32);
-  }
-  if (register_count == 4) {
-    const uint64_t u64 =
-        (static_cast<uint64_t>(tab[offset]) << 48) |
-        (static_cast<uint64_t>(tab[offset + 1]) << 32) |
-        (static_cast<uint64_t>(tab[offset + 2]) << 16) | tab[offset + 3];
-    if (data_type == RegisterDataType::Float64) {
-      double d;
-      memcpy(&d, &u64, 8);
-      return d;
-    }
-    if (data_type == RegisterDataType::Int64) {
-      return static_cast<double>(static_cast<int64_t>(u64));
-    }
-    return static_cast<double>(u64);
-  }
-  return 0.0;
-}
-
-double readRegisterValue(modbus_t* ctx, const ModbusRegisterConfig& reg) {
-  switch (reg.type) {
-    case RegisterType::Coil: {
-      uint8_t tab[1];
-      if (modbus_read_bits(ctx, reg.address, 1, tab) == 1) {
-        return tab[0] ? 1.0 : 0.0;
-      }
-      break;
-    }
-    case RegisterType::DiscreteInput: {
-      uint8_t tab[1];
-      if (modbus_read_input_bits(ctx, reg.address, 1, tab) == 1) {
-        return tab[0] ? 1.0 : 0.0;
-      }
-      break;
-    }
-    case RegisterType::InputRegister:
-    case RegisterType::HoldingRegister: {
-      uint16_t tab[4];
-      int nb = reg.register_count;
-      int ret = (reg.type == RegisterType::InputRegister)
-                    ? modbus_read_input_registers(ctx, reg.address, nb, tab)
-                    : modbus_read_registers(ctx, reg.address, nb, tab);
-      if (ret != nb)
-        break;
-      if (nb == 1) {
-        if (reg.data_type == RegisterDataType::Int16) {
-          return static_cast<double>(static_cast<int16_t>(tab[0]));
-        }
-        return static_cast<double>(tab[0]);
-      }
-      if (nb == 2) {
-        uint32_t u32 = (static_cast<uint32_t>(tab[0]) << 16) | tab[1];
-        if (reg.data_type == RegisterDataType::Float32) {
-          float f;
-          memcpy(&f, &u32, 4);
-          return static_cast<double>(f);
-        }
-        if (reg.data_type == RegisterDataType::Int32) {
-          return static_cast<double>(static_cast<int32_t>(u32));
-        }
-        return static_cast<double>(u32);
-      }
-      if (nb == 4) {
-        uint64_t u64 = (static_cast<uint64_t>(tab[0]) << 48) |
-                       (static_cast<uint64_t>(tab[1]) << 32) |
-                       (static_cast<uint64_t>(tab[2]) << 16) | tab[3];
-        if (reg.data_type == RegisterDataType::Float64) {
-          double d;
-          memcpy(&d, &u64, 8);
-          return d;
-        }
-        if (reg.data_type == RegisterDataType::Int64) {
-          return static_cast<double>(static_cast<int64_t>(u64));
-        }
-        return static_cast<double>(u64);
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  return 0.0;
-}
-
-bool writeRegisterValue(modbus_t* ctx, const ModbusRegisterConfig& reg, double value) {
-  switch (reg.type) {
-    case RegisterType::DiscreteInput:
-    case RegisterType::InputRegister:
-      return false;
-    case RegisterType::Coil: {
-      int v = (std::fabs(value) > 0.5) ? 1 : 0;
-      return modbus_write_bit(ctx, reg.address, v) == 1;
-    }
-    case RegisterType::HoldingRegister: {
-      if (reg.register_count == 1) {
-        uint16_t v = static_cast<uint16_t>(value);
-        if (reg.data_type == RegisterDataType::Int16) {
-          v = static_cast<uint16_t>(static_cast<int16_t>(value));
-        }
-        return modbus_write_register(ctx, reg.address, v) == 1;
-      }
-      if (reg.register_count == 2) {
-        uint32_t u32;
-        if (reg.data_type == RegisterDataType::Float32) {
-          float f = static_cast<float>(value);
-          memcpy(&u32, &f, 4);
-        } else {
-          u32 = static_cast<uint32_t>(value);
-        }
-        uint16_t tab[2] = {static_cast<uint16_t>(u32 >> 16),
-                           static_cast<uint16_t>(u32 & 0xFFFF)};
-        return modbus_write_registers(ctx, reg.address, 2, tab) == 2;
-      }
-      if (reg.register_count == 4) {
-        uint64_t u64;
-        if (reg.data_type == RegisterDataType::Float64) {
-          memcpy(&u64, &value, 8);
-        } else if (reg.data_type == RegisterDataType::Int64) {
-          u64 = static_cast<uint64_t>(static_cast<int64_t>(value));
-        } else {
-          u64 = static_cast<uint64_t>(value);
-        }
-        uint16_t tab[4] = {
-            static_cast<uint16_t>(u64 >> 48),
-            static_cast<uint16_t>((u64 >> 32) & 0xFFFF),
-            static_cast<uint16_t>((u64 >> 16) & 0xFFFF),
-            static_cast<uint16_t>(u64 & 0xFFFF),
-        };
-        return modbus_write_registers(ctx, reg.address, 4, tab) == 4;
-      }
-      break;
-    }
-  }
-  return false;
-}
-
-void setResponseTimeout(modbus_t* ctx, const ModbusDeviceConfig& dev) {
-  if (dev.response_timeout_sec <= 0)
-    return;
-  double s = dev.response_timeout_sec;
-  uint32_t to_sec = static_cast<uint32_t>(s);
-  uint32_t to_usec = static_cast<uint32_t>((s - to_sec) * 1e6);
-  modbus_set_response_timeout(ctx, to_sec, to_usec);
-}
-
-}  // namespace
 
 bool ModbusMaster::connect(const TcpConnectionParams& params) {
   if (ctx_) {
@@ -233,16 +68,143 @@ void ModbusMaster::disconnect() {
   ctx_.reset();
 }
 
-void ModbusMaster::readStateBatched(
-    std::vector<BatchGroup>& read_groups,
-    const std::vector<ModbusDeviceConfig>& devices,
-    std::vector<double>& state_vals) {
+bool ModbusMaster::initFromParams(const MasterParams& params) {
+  params_ = params;
+  return true;
+}
+
+bool ModbusMaster::connect() {
+  if (ctx_)
+    return true;
+  if (params_.is_tcp) {
+    return connect(params_.tcp_params);
+  }
+  return connect(params_.rtu_params);
+}
+
+void ModbusMaster::resetInitRegisters() {
+  init_registers_done_.store(false);
+}
+
+void ModbusMaster::setPlugins(
+    std::vector<std::shared_ptr<modbus_hw_interface::ModbusSlaveInterface>> plugins) {
+  plugins_ = std::move(plugins);
+}
+
+void ModbusMaster::setRegisterMappings(
+    std::vector<std::vector<std::pair<uint16_t, size_t>>> state_mappings,
+    std::vector<std::vector<std::pair<uint16_t, size_t>>> command_mappings) {
+  state_register_mappings_ = std::move(state_mappings);
+  command_register_mappings_ = std::move(command_mappings);
+}
+
+void ModbusMaster::buildPollGroups() {
+  read_batch_groups_.clear();
+  write_batch_groups_.clear();
+  if (!devices_ || plugins_.size() != devices_->size() ||
+      plugins_.size() != state_register_mappings_.size() ||
+      plugins_.size() != command_register_mappings_.size())
+    return;
+  for (size_t dev_idx = 0; dev_idx < plugins_.size(); ++dev_idx) {
+    const auto& dev = (*devices_)[dev_idx];
+    const uint8_t slave_id = static_cast<uint8_t>(dev.slave_id);
+    const uint8_t device_index = static_cast<uint8_t>(dev_idx);
+    auto read_groups = plugins_[dev_idx]->buildReadBatchGroups(device_index, slave_id, dev,
+                                                               state_register_mappings_[dev_idx]);
+    for (auto& g : read_groups) read_batch_groups_.push_back(std::move(g));
+    auto write_groups = plugins_[dev_idx]->buildWriteBatchGroups(
+        device_index, slave_id, dev, command_register_mappings_[dev_idx]);
+    for (auto& g : write_groups) write_batch_groups_.push_back(std::move(g));
+  }
+}
+
+void ModbusMaster::pollDevices() {
+  if (!ctx_ || !devices_)
+    return;
+  readStateBatched(read_batch_groups_, *devices_, state_poll_buffer_);
+  state_buffer_.writeFromNonRT(state_poll_buffer_);
+  std::vector<double> cmd = get_command_();
+  if (cmd.size() == command_count_)
+    writeCommandBatched(write_batch_groups_, *devices_, cmd);
+}
+
+void ModbusMaster::startPollLoop(size_t state_count, size_t command_count,
+                                 const std::vector<ModbusDeviceConfig>& devices,
+                                 std::function<std::vector<double>()> get_command) {
+  if (poll_thread_.joinable())
+    return;
+  if (!connect()) {
+    RCLCPP_ERROR(rclcpp::get_logger("modbus_master"), "startPollLoop: connect failed");
+    return;
+  }
+  state_count_ = state_count;
+  command_count_ = command_count;
+  devices_ = &devices;
+  get_command_ = std::move(get_command);
+  state_poll_buffer_.resize(state_count_, 0.0);
+  state_buffer_.initRT(std::vector<double>(state_count_, 0.0));
+
+  buildPollGroups();
+
+  poll_running_.store(true);
+  poll_thread_ = std::thread(&ModbusMaster::pollThreadLoop, this);
+}
+
+void ModbusMaster::stopPollLoop() {
+  poll_running_.store(false);
+  if (poll_thread_.joinable()) {
+    poll_thread_.join();
+    poll_thread_ = std::thread();
+  }
+  devices_ = nullptr;
+}
+
+const std::vector<double>* ModbusMaster::readStateSnapshotForRT() const {
+  return state_buffer_.readFromRT();
+}
+
+void ModbusMaster::pollThreadLoop() {
+  const auto logger = rclcpp::get_logger("modbus_master");
+  detail::applyRealtimeThreadParams(logger, params_.thread_priority, params_.cpu_affinity_cores);
+
+  const bool use_poll_delay = (params_.poll_rate_hz > 0.0);
+  const auto period = use_poll_delay ? std::chrono::duration<double>(1.0 / params_.poll_rate_hz)
+                                     : std::chrono::duration<double>(0);
+
+  if (!ctx_ || !devices_ || !get_command_)
+    return;
+
+  if (!init_registers_done_.exchange(true)) {
+    writeInitRegisters(*devices_);
+  }
+
+  while (poll_running_.load(std::memory_order_relaxed)) {
+    const auto iteration_start = std::chrono::steady_clock::now();
+
+    pollDevices();
+
+    if (use_poll_delay) {
+      const auto elapsed =
+          std::chrono::duration<double>(std::chrono::steady_clock::now() - iteration_start);
+      const auto remaining = period - elapsed;
+      if (remaining.count() > 0) {
+        std::this_thread::sleep_for(remaining);
+      } else {
+        RCLCPP_WARN(logger, "Poll delay: elapsed %g > period %g", elapsed.count(), period.count());
+      }
+    }
+  }
+}
+
+void ModbusMaster::readStateBatched(std::vector<BatchGroup>& read_groups,
+                                    const std::vector<ModbusDeviceConfig>& devices,
+                                    std::vector<double>& state_vals) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();
   for (auto& grp : read_groups) {
     if (grp.device_index < devices.size()) {
-      setResponseTimeout(ctx, devices[grp.device_index]);
+      detail::setResponseTimeout(ctx, devices[grp.device_index]);
     }
     if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
       continue;
@@ -257,8 +219,8 @@ void ModbusMaster::readStateBatched(
           }
         }
       } else if (grp.type == RegisterType::DiscreteInput) {
-        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count,
-                                   grp.buffer.data()) == static_cast<int>(grp.total_count)) {
+        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
+            static_cast<int>(grp.total_count)) {
           size_t off = 0;
           for (const auto& it : grp.items) {
             state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
@@ -274,29 +236,28 @@ void ModbusMaster::readStateBatched(
           size_t off = 0;
           for (const auto& it : grp.items) {
             state_vals[it.index] =
-                decodeRegistersFromBuffer(regs, off, it.register_count, it.data_type);
+                detail::decodeRegistersFromBuffer(regs, off, it.register_count, it.data_type);
             off += static_cast<size_t>(it.register_count);
           }
         }
       }
     } else {
       for (const auto& it : grp.items) {
-        state_vals[it.index] = readRegisterValue(ctx, *it.reg);
+        state_vals[it.index] = detail::readRegisterValue(ctx, *it.reg);
       }
     }
   }
 }
 
-void ModbusMaster::writeCommandBatched(
-    std::vector<BatchGroup>& write_groups,
-    const std::vector<ModbusDeviceConfig>& devices,
-    const std::vector<double>& command_vals) {
+void ModbusMaster::writeCommandBatched(std::vector<BatchGroup>& write_groups,
+                                       const std::vector<ModbusDeviceConfig>& devices,
+                                       const std::vector<double>& command_vals) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();
   for (auto& grp : write_groups) {
     if (grp.device_index < devices.size()) {
-      setResponseTimeout(ctx, devices[grp.device_index]);
+      detail::setResponseTimeout(ctx, devices[grp.device_index]);
     }
     if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
       continue;
@@ -346,14 +307,13 @@ void ModbusMaster::writeCommandBatched(
                         grp.buffer.data());
     } else {
       for (const auto& it : grp.items) {
-        writeRegisterValue(ctx, *it.reg, command_vals[it.index]);
+        detail::writeRegisterValue(ctx, *it.reg, command_vals[it.index]);
       }
     }
   }
 }
 
-void ModbusMaster::writeInitRegisters(
-    const std::vector<ModbusDeviceConfig>& devices) {
+void ModbusMaster::writeInitRegisters(const std::vector<ModbusDeviceConfig>& devices) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();
@@ -362,7 +322,7 @@ void ModbusMaster::writeInitRegisters(
     const auto& dev = devices[di];
     if (dev.init_registers.empty())
       continue;
-    setResponseTimeout(ctx, dev);
+    detail::setResponseTimeout(ctx, dev);
     if (modbus_set_slave(ctx, dev.slave_id) < 0) {
       RCLCPP_WARN(logger, "Init registers: failed to set slave_id %d", dev.slave_id);
       continue;
@@ -373,7 +333,7 @@ void ModbusMaster::writeInitRegisters(
       reg.address = static_cast<uint16_t>(init.address);
       reg.data_type = init.data_type;
       reg.register_count = static_cast<uint16_t>(init.register_count);
-      if (writeRegisterValue(ctx, reg, init.value)) {
+      if (detail::writeRegisterValue(ctx, reg, init.value)) {
         RCLCPP_DEBUG(logger, "Init write dev '%s' addr %d = %g", dev.name.c_str(), init.address,
                      init.value);
       } else {

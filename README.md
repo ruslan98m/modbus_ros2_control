@@ -10,9 +10,10 @@
 | Package | Description |
 |---------|-------------|
 | **modbus_ros2_control** | Meta-package (this repo root). Launch and integration tests; depends on the packages below. |
-| [modbus_master](modbus_master) | Modbus RTU/TCP client: connection, batch read/write, register decode. No ros2_control; used by modbus_hw_interface. |
+| [modbus_slave_interface](modbus_slave_interface) | Base interface and types for Modbus devices: `ModbusSlaveInterface`, `ModbusDeviceConfig`, `BatchGroup`, `modbus_types`. No plugins; used by modbus_master and modbus_slave_plugins. |
+| [modbus_master](modbus_master) | Modbus RTU/TCP client: connection, batch read/write, register decode, poll thread. No ros2_control; used by modbus_hw_interface. |
 | [modbus_hw_interface](modbus_hw_interface) | Hardware interface plugin for ros2_control: bus in xacro, device configs via plugins, poll thread; uses modbus_master for all Modbus I/O. |
-| [modbus_slave_plugins](modbus_slave_plugins) | Slave plugins (e.g. GenericModbusSlave) and shared config types for device YAML. |
+| [modbus_slave_plugins](modbus_slave_plugins) | Device plugins (e.g. GenericModbusSlave) and config loader for device YAML; implement ModbusSlaveInterface from modbus_slave_interface. |
 | [modbus_tcp_test_server](modbus_tcp_test_server) | Modbus TCP test server for integration and manual testing: listens on a port and responds to read/write; used by launch tests and for debugging. |
 
 ## Build

@@ -1,47 +1,43 @@
 # modbus_slave_plugins
 
-Отдельный проект: базовый класс плагинов Modbus-устройств и реализация GenericModbusSlave. Подключаются в URDF и обрабатываются [modbus_hw_interface](https://github.com/your-org/modbus_ros2_control) автоматически (по аналогии с [ethercat_driver_ros2](https://github.com/ICube-Robotics/ethercat_driver_ros2) и `GenericEcSlave`).
+Plugin package: implementations of the Modbus device interface (e.g. **GenericModbusSlave**). Loaded via URDF/xacro and used by [modbus_hw_interface](https://github.com/ruslan98m/modbus_ros2_control) (by analogy with [ethercat_driver_ros2](https://github.com/ICube-Robotics/ethercat_driver_ros2) and `GenericEcSlave`).
 
-## Содержимое пакета
+The base interface and types (`ModbusSlaveInterface`, `ModbusDeviceConfig`, `BatchGroup`, etc.) live in the [modbus_slave_interface](../modbus_slave_interface) package; this package provides the plugin implementation and config loading.
 
-- **ModbusSlaveInterface** — базовый класс плагинов (интерфейс в `modbus_hw_interface` namespace, заголовки в `include/modbus_slave_plugins/`).
-- **Типы и загрузчик** — `ModbusDeviceConfig`, `ModbusRegisterConfig`, `ModbusTypes`, `ModbusDeviceConfigLoader`, `modbus_utils` (библиотека `modbus_slave_common`).
-- **GenericModbusSlave** — плагин, загружающий конфигурацию устройства из YAML (`slave_config` / `device_config`).
+## Package contents
 
-## Зависимости
+- **GenericModbusSlave** — plugin that loads device configuration from YAML (`slave_config` / `device_config`). Use in URDF with `plugin="modbus_slave_plugins/GenericModbusSlave"`.
+- **ModbusDeviceConfigLoader** — loads and parses device YAML (registers, init_registers, options). Used by GenericModbusSlave.
+- **modbus_utils** — helpers for parsing type strings (`dataTypeFromString`, `registerTypeFromString`, `registerCountForDataType`, etc.) and for config validation.
 
-- `modbus_hw_interface` зависит от этого пакета (получает типы, интерфейс раба и загрузчик конфига).
+## Dependencies
 
-## Использование в URDF / xacro
+- **modbus_slave_interface** — base class and types.
+- **modbus_hw_interface** depends on this package to load device plugins and get GenericModbusSlave.
 
-Устройство можно описать либо через путь к YAML, либо через плагин.
+## Usage in URDF / xacro
 
-**Без плагина (как раньше):**
-
-```xml
-<joint name="plc_1">
-  <param name="slave_id">1</param>
-  <param name="device_config">$(find modbus_hw_interface)/config/devices/plc_device.yaml</param>
-</joint>
-```
-
-**С плагином (автоматическая обработка в hardware interface):**
+Specify the plugin and the path to the device YAML:
 
 ```xml
 <joint name="plc_1">
   <param name="plugin">modbus_slave_plugins/GenericModbusSlave</param>
   <param name="slave_id">1</param>
-  <param name="slave_config">$(find modbus_hw_interface)/config/devices/plc_device.yaml</param>
+  <param name="device_config">$(find modbus_hw_interface)/config/devices/plc_device.yaml</param>
 </joint>
 ```
 
-Формат YAML для `slave_config` / `device_config` тот же, что и при использовании без плагина.
+You can use `slave_config` instead of `device_config`; the format is the same. The YAML format is described in [modbus_hw_interface](../modbus_hw_interface/README.md).
 
-## Сборка
+## Build
 
-Соберите пакет вместе с `modbus_hw_interface`:
+Build together with the hardware interface:
 
 ```bash
-colcon build --packages-select modbus_hw_interface modbus_slave_plugins
+colcon build --packages-select modbus_slave_interface modbus_slave_plugins modbus_hw_interface
 source install/setup.bash
 ```
+
+## License
+
+Apache-2.0.

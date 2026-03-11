@@ -1,19 +1,19 @@
-// Copyright 2025 modbus_slave_plugins contributors.
+// Copyright 2025 modbus_slave_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
  * @file modbus_device_config.hpp
- * @brief Modbus device configuration structures (provided by modbus_slave_plugins for slave interface).
+ * @brief Modbus device configuration structures for slave interface.
  */
 
-#ifndef MODBUS_HW_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_
-#define MODBUS_HW_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_
+#ifndef MODBUS_SLAVE_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_
+#define MODBUS_SLAVE_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-#include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_slave_interface/modbus_types.hpp"
 
 namespace modbus_hw_interface {
 
@@ -28,7 +28,8 @@ struct ModbusRegisterConfig {
   double offset{0.0};
 };
 
-/** Written once at startup (on_activate) before polling. Only coil and holding_register are writable. */
+/** Written once at startup (on_activate) before polling. Only coil and holding_register are
+ * writable. */
 struct ModbusInitRegisterConfig {
   RegisterType type{RegisterType::HoldingRegister};
   int address{0};
@@ -51,4 +52,4 @@ struct ModbusDeviceConfig {
 
 }  // namespace modbus_hw_interface
 
-#endif  // MODBUS_HW_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_
+#endif  // MODBUS_SLAVE_INTERFACE__MODBUS_DEVICE_CONFIG_HPP_

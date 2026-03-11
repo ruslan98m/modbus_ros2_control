@@ -1,16 +1,16 @@
-# Copyright 2025 modbus_hw_interface contributors.
+# Copyright 2025 modbus_ros2_control_examples contributors.
 # SPDX-License-Identifier: Apache-2.0
 
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def launch_setup(context, *args, **kwargs):
-    pkg_share = get_package_share_directory("modbus_hw_interface")
+    pkg_share = get_package_share_directory("modbus_ros2_control_examples")
     urdf_arg = LaunchConfiguration("urdf_file").perform(context)
     urdf_file = (
         urdf_arg
