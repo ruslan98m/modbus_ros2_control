@@ -1,16 +1,34 @@
 // Copyright 2025 modbus_master contributors.
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * @file master_params.hpp
+ * @brief Modbus master parameters: connection (TCP/RTU) and poll thread settings.
+ */
+
 #ifndef MODBUS_MASTER__MASTER_PARAMS_HPP_
 #define MODBUS_MASTER__MASTER_PARAMS_HPP_
 
+#include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "modbus_master/connection_params.hpp"
-
 namespace modbus_master {
+
+/** Connection parameters for Modbus TCP. */
+struct TcpConnectionParams {
+  std::string ip_address{"127.0.0.1"};
+  uint16_t port{502};
+};
+
+/** Connection parameters for Modbus RTU (serial). */
+struct RtuConnectionParams {
+  std::string serial_port{"/dev/ttyUSB0"};
+  uint32_t baud_rate{9600};
+  char parity{'N'};
+  uint8_t data_bits{8};
+  uint8_t stop_bits{1};
+};
 
 /** Parsed master params: connection + poll thread settings. */
 struct MasterParams {
@@ -21,15 +39,6 @@ struct MasterParams {
   int thread_priority{50};
   std::vector<int> cpu_affinity_cores;
 };
-
-/**
- * Parse hardware_parameters map (e.g. from URDF) into MasterParams.
- * Keys: connection_type, ip_address, port, serial_port, baud_rate, parity,
- * data_bits, stop_bits, poll_rate_hz, thread_priority, cpu_affinity.
- * @return true on success, false on invalid connection_type.
- */
-bool parseMasterParams(const std::unordered_map<std::string, std::string>& params,
-                       MasterParams& out);
 
 }  // namespace modbus_master
 

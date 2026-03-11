@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_slave_interface/modbus_types.hpp"
 #include "rclcpp/logger.hpp"
 
 namespace modbus_hw_interface {
@@ -21,8 +21,6 @@ RegisterDataType dataTypeFromString(const std::string& s);
 RegisterType registerTypeFromString(const std::string& s);
 std::string dataTypeToInterfaceString(RegisterDataType t);
 int registerCountForDataType(RegisterDataType t);
-void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
-                               const std::vector<int>& cpu_affinity_cores);
 
 }  // namespace modbus_hw_interface
 

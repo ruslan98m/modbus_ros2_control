@@ -13,10 +13,9 @@
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_component_interface_params.hpp"
-#include "modbus_hw_interface/modbus_config.hpp"
-#include "modbus_slave_plugins/batch_group.hpp"
 #include "modbus_master/modbus_master.hpp"
-#include "modbus_slave_plugins/modbus_slave_interface.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_slave_interface.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "realtime_tools/realtime_buffer.hpp"
@@ -56,20 +55,21 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
 
  private:
   bool loadBusFromParams(const hardware_interface::HardwareInfo& info);
-  /** Load Modbus device configs from components (joints/gpios/sensors); append to
-   * bus_config_.devices. */
+  /** Load Modbus device configs from components (joints/gpios/sensors); append to devices_. */
   bool loadDevicesFromComponents(const std::vector<hardware_interface::ComponentInfo>& components,
                                  const std::string& component_type);
   /** Ensure Modbus connection is open; returns true if connected. */
   bool ensureConnected();
   void closeContext();
-  void buildBatchGroups();
   /** Call setInterfaces() on each plugin so devices own their interface names/indices. */
   void assignDeviceInterfaces();
+  /** Pass devices, plugins and register mappings to the master for polling. */
+  void setupMasterForPolling();
   /** Start master poll loop (no-op if already running). */
   void startMasterPollLoop();
 
-  ModbusBusConfig bus_config_;
+  std::string bus_name_;
+  std::vector<ModbusDeviceConfig> devices_;
   std::unique_ptr<modbus_master::ModbusMaster> master_;
   std::string hardware_name_;
 
@@ -82,9 +82,6 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
   };
   std::vector<std::pair<std::string, RegisterHandle>> state_handles_;
   std::vector<std::pair<std::string, RegisterHandle>> command_handles_;
-
-  std::vector<modbus_slave_plugins::BatchGroup> read_batch_groups_;
-  std::vector<modbus_slave_plugins::BatchGroup> write_batch_groups_;
 
   /** Pre-allocated for write() RT path (size = command_handles_.size()). */
   std::vector<double> cmd_vals_;

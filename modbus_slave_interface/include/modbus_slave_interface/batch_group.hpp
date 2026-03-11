@@ -1,21 +1,21 @@
-// Copyright 2025 modbus_slave_plugins contributors.
+// Copyright 2025 modbus_slave_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
  * @file batch_group.hpp
- * @brief Batch of Modbus registers for read/write. Built by device plugins; used by master and HW interface.
+ * @brief Batch of Modbus registers for read/write. Built by device plugins; used by master.
  */
 
-#ifndef MODBUS_SLAVE_PLUGINS__BATCH_GROUP_HPP_
-#define MODBUS_SLAVE_PLUGINS__BATCH_GROUP_HPP_
+#ifndef MODBUS_SLAVE_INTERFACE__BATCH_GROUP_HPP_
+#define MODBUS_SLAVE_INTERFACE__BATCH_GROUP_HPP_
 
 #include <cstdint>
 #include <vector>
 
-#include "modbus_slave_plugins/modbus_device_config.hpp"
-#include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_types.hpp"
 
-namespace modbus_slave_plugins {
+namespace modbus_slave_interface {
 
 /** One item in a batch: index into state/command vector and register config pointer. */
 struct BatchItem {
@@ -37,6 +37,6 @@ struct BatchGroup {
   std::vector<uint8_t> buffer;
 };
 
-}  // namespace modbus_slave_plugins
+}  // namespace modbus_slave_interface
 
-#endif  // MODBUS_SLAVE_PLUGINS__BATCH_GROUP_HPP_
+#endif  // MODBUS_SLAVE_INTERFACE__BATCH_GROUP_HPP_

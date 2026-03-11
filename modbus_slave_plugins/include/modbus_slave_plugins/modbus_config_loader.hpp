@@ -13,7 +13,7 @@
 
 #include <string>
 
-#include "modbus_slave_plugins/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
 #include "rclcpp/logger.hpp"
 
 namespace modbus_hw_interface {

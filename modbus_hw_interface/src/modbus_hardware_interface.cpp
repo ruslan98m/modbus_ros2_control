@@ -14,7 +14,9 @@
 #include <stdexcept>
 #include <utility>
 
-#include "modbus_slave_plugins/modbus_slave_interface.hpp"
+#include "modbus_hw_interface/master_params_parser.hpp"
+#include "modbus_master/master_params.hpp"
+#include "modbus_slave_interface/modbus_slave_interface.hpp"
 #include "modbus_slave_plugins/modbus_utils.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -27,7 +29,7 @@ bool ModbusSystemInterface::loadBusFromParams(const hardware_interface::Hardware
     auto it = p.find(key);
     return (it != p.end()) ? it->second : def;
   };
-  bus_config_.bus_name = get("bus_name", "modbus_bus");
+  bus_name_ = get("bus_name", "modbus_bus");
   return true;
 }
 
@@ -40,7 +42,7 @@ bool ModbusSystemInterface::ensureConnected() {
   }
   if (!master_->connect()) {
     RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
+                 "Failed to connect Modbus bus '%s'", bus_name_.c_str());
     return false;
   }
   return true;
@@ -52,37 +54,24 @@ void ModbusSystemInterface::closeContext() {
   }
 }
 
-void ModbusSystemInterface::buildBatchGroups() {
-  read_batch_groups_.clear();
-  write_batch_groups_.clear();
-
+void ModbusSystemInterface::setupMasterForPolling() {
+  if (!master_)
+    return;
+  master_->setPlugins(modbus_slaves_);
   const size_t num_devices = modbus_slaves_.size();
-  for (size_t dev_idx = 0; dev_idx < num_devices && dev_idx < bus_config_.devices.size();
-       ++dev_idx) {
-    const auto& dev = bus_config_.devices[dev_idx];
-    const uint8_t slave_id = static_cast<uint8_t>(dev.slave_id);
-    const uint8_t device_index = static_cast<uint8_t>(dev_idx);
-
-    std::vector<std::pair<uint16_t, size_t>> state_reg_indices;
-    for (size_t i = 0; i < state_handles_.size(); ++i) {
-      if (state_handles_[i].second.device_index == device_index)
-        state_reg_indices.emplace_back(state_handles_[i].second.reg_index, i);
-    }
-    auto read_groups =
-        modbus_slaves_[dev_idx]->buildReadBatchGroups(device_index, slave_id, dev, state_reg_indices);
-    for (auto& g : read_groups)
-      read_batch_groups_.push_back(std::move(g));
-
-    std::vector<std::pair<uint16_t, size_t>> cmd_reg_indices;
-    for (size_t i = 0; i < command_handles_.size(); ++i) {
-      if (command_handles_[i].second.device_index == device_index)
-        cmd_reg_indices.emplace_back(command_handles_[i].second.reg_index, i);
-    }
-    auto write_groups = modbus_slaves_[dev_idx]->buildWriteBatchGroups(
-        device_index, slave_id, dev, cmd_reg_indices);
-    for (auto& g : write_groups)
-      write_batch_groups_.push_back(std::move(g));
+  std::vector<std::vector<std::pair<uint16_t, size_t>>> state_mappings(num_devices);
+  std::vector<std::vector<std::pair<uint16_t, size_t>>> command_mappings(num_devices);
+  for (size_t i = 0; i < state_handles_.size(); ++i) {
+    uint8_t d = state_handles_[i].second.device_index;
+    if (d < num_devices)
+      state_mappings[d].emplace_back(state_handles_[i].second.reg_index, i);
   }
+  for (size_t i = 0; i < command_handles_.size(); ++i) {
+    uint8_t d = command_handles_[i].second.device_index;
+    if (d < num_devices)
+      command_mappings[d].emplace_back(command_handles_[i].second.reg_index, i);
+  }
+  master_->setRegisterMappings(std::move(state_mappings), std::move(command_mappings));
 }
 
 bool ModbusSystemInterface::loadDevicesFromComponents(
@@ -126,7 +115,7 @@ bool ModbusSystemInterface::loadDevicesFromComponents(
                   ex.what());
       return false;
     }
-    bus_config_.devices.push_back(dev);
+    devices_.push_back(dev);
   }
   return true;
 }
@@ -135,17 +124,23 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
     const hardware_interface::HardwareComponentInterfaceParams &params) {
   const auto &info = params.hardware_info;
   hardware_name_ = info.name;
-  bus_config_.devices.clear();
+  devices_.clear();
   modbus_slaves_.clear();
 
   if (!loadBusFromParams(info)) {
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  master_ = std::make_unique<modbus_master::ModbusMaster>();
-  if (!master_->initFromParams(info.hardware_parameters)) {
+  modbus_master::MasterParams master_params;
+  if (!parseMasterParams(info, master_params)) {
     RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "Modbus master initFromParams failed (invalid connection_type or params)");
+                 "Modbus master params parsing failed (invalid params)");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  master_ = std::make_unique<modbus_master::ModbusMaster>();
+  if (!master_->initFromParams(master_params)) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
+                 "Modbus master initFromParams failed");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
@@ -162,9 +157,9 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
   state_handles_.clear();
   command_handles_.clear();
 
-  for (size_t di = 0; di < bus_config_.devices.size(); ++di) {
-    const auto &dev = bus_config_.devices[di];
-    std::string dev_prefix = bus_config_.bus_name + "_" + dev.name;
+  for (size_t di = 0; di < devices_.size(); ++di) {
+    const auto &dev = devices_[di];
+    std::string dev_prefix = bus_name_ + "_" + dev.name;
     for (size_t ri = 0; ri < dev.registers.size(); ++ri) {
       const auto &reg = dev.registers[ri];
       std::string if_name = dev_prefix + "_" + reg.interface_name;
@@ -181,8 +176,8 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
 
   command_buffer_.initRT(std::vector<double>(command_handles_.size(), 0.0));
 
-  buildBatchGroups();
   assignDeviceInterfaces();
+  setupMasterForPolling();
 
   cmd_vals_.resize(command_handles_.size(), 0.0);
 
@@ -213,9 +208,7 @@ void ModbusSystemInterface::startMasterPollLoop() {
   master_->startPollLoop(
       state_handles_.size(),
       command_handles_.size(),
-      read_batch_groups_,
-      write_batch_groups_,
-      bus_config_.devices,
+      devices_,
       [this]() {
         const std::vector<double> *p = command_buffer_.readFromNonRT();
         if (p && p->size() == command_handles_.size())

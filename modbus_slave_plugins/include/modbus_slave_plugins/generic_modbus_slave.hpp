@@ -15,8 +15,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "modbus_slave_plugins/modbus_device_config.hpp"
-#include "modbus_slave_plugins/modbus_slave_interface.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_slave_interface.hpp"
 #include "yaml-cpp/yaml.h"
 
 namespace modbus_slave_plugins {

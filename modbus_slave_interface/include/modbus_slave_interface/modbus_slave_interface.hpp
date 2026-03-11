@@ -1,4 +1,4 @@
-// Copyright 2025 modbus_slave_plugins contributors.
+// Copyright 2025 modbus_slave_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -7,8 +7,8 @@
  *        HW interface calls setInterfaces() once, then readState()/writeCommand() per cycle.
  */
 
-#ifndef MODBUS_HW_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_
-#define MODBUS_HW_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_
+#ifndef MODBUS_SLAVE_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_
+#define MODBUS_SLAVE_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_
 
 #include <cstdint>
 #include <functional>
@@ -17,8 +17,8 @@
 #include <utility>
 #include <vector>
 
-#include "modbus_slave_plugins/batch_group.hpp"
-#include "modbus_slave_plugins/modbus_device_config.hpp"
+#include "modbus_slave_interface/batch_group.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
 
 namespace modbus_hw_interface {
 
@@ -79,10 +79,10 @@ class ModbusSlaveInterface {
   const std::vector<std::string>& commandNames() const { return command_names_; }
 
   /**
-   * Build read (state) batch groups for this device. Called by HW interface during buildBatchGroups().
+   * Build read (state) batch groups for this device.
    * Returns ready-to-use BatchGroup with buffer allocated.
    */
-  std::vector<modbus_slave_plugins::BatchGroup> buildReadBatchGroups(
+  std::vector<modbus_slave_interface::BatchGroup> buildReadBatchGroups(
       uint8_t device_index,
       uint8_t slave_id,
       const ModbusDeviceConfig& dev,
@@ -91,7 +91,7 @@ class ModbusSlaveInterface {
   /**
    * Build write (command) batch groups for this device. Skips read-only types.
    */
-  std::vector<modbus_slave_plugins::BatchGroup> buildWriteBatchGroups(
+  std::vector<modbus_slave_interface::BatchGroup> buildWriteBatchGroups(
       uint8_t device_index,
       uint8_t slave_id,
       const ModbusDeviceConfig& dev,
@@ -126,4 +126,4 @@ class ModbusSlaveInterface {
 
 }  // namespace modbus_hw_interface
 
-#endif  // MODBUS_HW_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_
+#endif  // MODBUS_SLAVE_INTERFACE__MODBUS_SLAVE_INTERFACE_HPP_

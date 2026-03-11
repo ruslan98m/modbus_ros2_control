@@ -1,14 +1,17 @@
-// Copyright 2025 modbus_master contributors.
+// Copyright 2025 modbus_hw_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "modbus_master/master_params.hpp"
+#include "modbus_hw_interface/master_params_parser.hpp"
 
 #include <sstream>
 
-namespace modbus_master {
+#include "modbus_master/master_params.hpp"
 
-bool parseMasterParams(const std::unordered_map<std::string, std::string>& params,
-                       MasterParams& out) {
+namespace modbus_hw_interface {
+
+bool parseMasterParams(const hardware_interface::HardwareInfo& info,
+                       modbus_master::MasterParams& out) {
+  const auto& params = info.hardware_parameters;
   auto get = [&params](const std::string& key, const std::string& def) {
     auto it = params.find(key);
     return (it != params.end()) ? it->second : def;
@@ -76,4 +79,4 @@ bool parseMasterParams(const std::unordered_map<std::string, std::string>& param
   return true;
 }
 
-}  // namespace modbus_master
+}  // namespace modbus_hw_interface

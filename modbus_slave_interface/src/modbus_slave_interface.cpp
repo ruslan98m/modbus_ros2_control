@@ -1,21 +1,21 @@
-// Copyright 2025 modbus_slave_plugins contributors.
+// Copyright 2025 modbus_slave_interface contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "modbus_slave_plugins/modbus_slave_interface.hpp"
+#include "modbus_slave_interface/modbus_slave_interface.hpp"
 
 #include <algorithm>
 #include <cstdint>
 
-#include "modbus_slave_plugins/batch_group.hpp"
-#include "modbus_slave_plugins/modbus_device_config.hpp"
-#include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_slave_interface/batch_group.hpp"
+#include "modbus_slave_interface/modbus_device_config.hpp"
+#include "modbus_slave_interface/modbus_types.hpp"
 
 namespace modbus_hw_interface {
 
 namespace {
 
-using modbus_slave_plugins::BatchGroup;
-using modbus_slave_plugins::BatchItem;
+using modbus_slave_interface::BatchGroup;
+using modbus_slave_interface::BatchItem;
 
 void buildReadGroupsImpl(uint8_t device_index,
                          uint8_t slave_id,
@@ -119,22 +119,22 @@ void buildWriteGroupsImpl(uint8_t device_index,
 
 }  // namespace
 
-std::vector<modbus_slave_plugins::BatchGroup> ModbusSlaveInterface::buildReadBatchGroups(
+std::vector<modbus_slave_interface::BatchGroup> ModbusSlaveInterface::buildReadBatchGroups(
     uint8_t device_index,
     uint8_t slave_id,
     const ModbusDeviceConfig& dev,
     const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const {
-  std::vector<modbus_slave_plugins::BatchGroup> out;
+  std::vector<modbus_slave_interface::BatchGroup> out;
   buildReadGroupsImpl(device_index, slave_id, dev, reg_index_to_global_index, out);
   return out;
 }
 
-std::vector<modbus_slave_plugins::BatchGroup> ModbusSlaveInterface::buildWriteBatchGroups(
+std::vector<modbus_slave_interface::BatchGroup> ModbusSlaveInterface::buildWriteBatchGroups(
     uint8_t device_index,
     uint8_t slave_id,
     const ModbusDeviceConfig& dev,
     const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const {
-  std::vector<modbus_slave_plugins::BatchGroup> out;
+  std::vector<modbus_slave_interface::BatchGroup> out;
   buildWriteGroupsImpl(device_index, slave_id, dev, reg_index_to_global_index, out);
   return out;
 }
