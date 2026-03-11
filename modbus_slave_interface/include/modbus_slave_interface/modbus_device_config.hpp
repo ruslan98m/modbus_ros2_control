@@ -28,7 +28,8 @@ struct ModbusRegisterConfig {
   double offset{0.0};
 };
 
-/** Written once at startup (on_activate) before polling. Only coil and holding_register are writable. */
+/** Written once at startup (on_activate) before polling. Only coil and holding_register are
+ * writable. */
 struct ModbusInitRegisterConfig {
   RegisterType type{RegisterType::HoldingRegister};
   int address{0};

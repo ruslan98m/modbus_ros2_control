@@ -17,9 +17,7 @@ namespace {
 using modbus_slave_interface::BatchGroup;
 using modbus_slave_interface::BatchItem;
 
-void buildReadGroupsImpl(uint8_t device_index,
-                         uint8_t slave_id,
-                         const ModbusDeviceConfig& dev,
+void buildReadGroupsImpl(uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
                          const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global,
                          std::vector<BatchGroup>& out) {
   if (reg_index_to_global.empty())
@@ -66,11 +64,9 @@ void buildReadGroupsImpl(uint8_t device_index,
   }
 }
 
-void buildWriteGroupsImpl(uint8_t device_index,
-                         uint8_t slave_id,
-                         const ModbusDeviceConfig& dev,
-                         const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global,
-                         std::vector<BatchGroup>& out) {
+void buildWriteGroupsImpl(uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
+                          const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global,
+                          std::vector<BatchGroup>& out) {
   if (reg_index_to_global.empty())
     return;
   std::vector<std::pair<size_t, const ModbusRegisterConfig*>> items;
@@ -96,8 +92,8 @@ void buildWriteGroupsImpl(uint8_t device_index,
     grp.slave_id = slave_id;
     grp.type = cur_type;
     grp.start_address = cur_addr;
-    grp.use_batch = (cur_type == RegisterType::Coil) ? dev.write_multiple_coils
-                                                    : dev.write_multiple_registers;
+    grp.use_batch =
+        (cur_type == RegisterType::Coil) ? dev.write_multiple_coils : dev.write_multiple_registers;
     while (i < items.size() && items[i].second->type == cur_type &&
            items[i].second->address == cur_addr) {
       const ModbusRegisterConfig* reg = items[i].second;
@@ -120,9 +116,7 @@ void buildWriteGroupsImpl(uint8_t device_index,
 }  // namespace
 
 std::vector<modbus_slave_interface::BatchGroup> ModbusSlaveInterface::buildReadBatchGroups(
-    uint8_t device_index,
-    uint8_t slave_id,
-    const ModbusDeviceConfig& dev,
+    uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
     const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const {
   std::vector<modbus_slave_interface::BatchGroup> out;
   buildReadGroupsImpl(device_index, slave_id, dev, reg_index_to_global_index, out);
@@ -130,30 +124,25 @@ std::vector<modbus_slave_interface::BatchGroup> ModbusSlaveInterface::buildReadB
 }
 
 std::vector<modbus_slave_interface::BatchGroup> ModbusSlaveInterface::buildWriteBatchGroups(
-    uint8_t device_index,
-    uint8_t slave_id,
-    const ModbusDeviceConfig& dev,
+    uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
     const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const {
   std::vector<modbus_slave_interface::BatchGroup> out;
   buildWriteGroupsImpl(device_index, slave_id, dev, reg_index_to_global_index, out);
   return out;
 }
 
-void ModbusSlaveInterface::setInterfaces(
-    uint8_t device_index,
-    std::vector<InterfaceNameIndex> state_interfaces,
-    std::vector<InterfaceNameIndex> command_interfaces) {
+void ModbusSlaveInterface::setInterfaces(uint8_t device_index,
+                                         std::vector<InterfaceNameIndex> state_interfaces,
+                                         std::vector<InterfaceNameIndex> command_interfaces) {
   device_index_ = device_index;
   state_interfaces_ = std::move(state_interfaces);
   command_interfaces_ = std::move(command_interfaces);
   state_names_.clear();
   state_names_.reserve(state_interfaces_.size());
-  for (const auto& p : state_interfaces_)
-    state_names_.push_back(p.first);
+  for (const auto& p : state_interfaces_) state_names_.push_back(p.first);
   command_names_.clear();
   command_names_.reserve(command_interfaces_.size());
-  for (const auto& p : command_interfaces_)
-    command_names_.push_back(p.first);
+  for (const auto& p : command_interfaces_) command_names_.push_back(p.first);
   state_vals_buffer_.resize(state_interfaces_.size(), 0.0);
   command_out_buffer_.resize(command_interfaces_.size(), 0.0);
 }
@@ -167,8 +156,8 @@ void ModbusSlaveInterface::readState(const std::vector<double>& state_buffer,
     if (g < state_buffer.size())
       state_vals_buffer_[i] = state_buffer[g];
   }
-  updateState(device_index_, state_names_, state_vals_buffer_.data(),
-              state_vals_buffer_.size(), set_state);
+  updateState(device_index_, state_names_, state_vals_buffer_.data(), state_vals_buffer_.size(),
+              set_state);
 }
 
 void ModbusSlaveInterface::writeCommand(GetCommandCallback get_command,

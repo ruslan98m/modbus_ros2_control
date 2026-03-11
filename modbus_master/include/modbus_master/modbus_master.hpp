@@ -4,6 +4,8 @@
 #ifndef MODBUS_MASTER__MODBUS_MASTER_HPP_
 #define MODBUS_MASTER__MODBUS_MASTER_HPP_
 
+#include <modbus/modbus.h>
+
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -16,7 +18,6 @@
 #include "modbus_slave_interface/modbus_device_config.hpp"
 #include "modbus_slave_interface/modbus_slave_interface.hpp"
 #include "realtime_tools/realtime_buffer.hpp"
-#include <modbus/modbus.h>
 
 namespace modbus_master {
 
@@ -42,7 +43,8 @@ class ModbusMaster {
   ModbusMaster(const ModbusMaster&) = delete;
   ModbusMaster& operator=(const ModbusMaster&) = delete;
 
-  /** Set connection and poll params (parsed by hardware interface). Call before connect/startPollLoop. */
+  /** Set connection and poll params (parsed by hardware interface). Call before
+   * connect/startPollLoop. */
   bool initFromParams(const MasterParams& params);
 
   /** Connect using params from initFromParams. Returns true on success. */
@@ -57,33 +59,31 @@ class ModbusMaster {
   /** Disconnect and free context. */
   void disconnect();
 
-  bool isConnected() const { return ctx_ != nullptr; }
+  bool isConnected() const {
+    return ctx_ != nullptr;
+  }
 
   /** Reset so that next startPollLoop run will call writeInitRegisters once. */
   void resetInitRegisters();
 
   /** Set device plugins (one per device). Call before startPollLoop. */
-  void setPlugins(
-      std::vector<std::shared_ptr<modbus_hw_interface::ModbusSlaveInterface>> plugins);
+  void setPlugins(std::vector<std::shared_ptr<modbus_hw_interface::ModbusSlaveInterface>> plugins);
 
   /**
    * Set per-device register mappings: (reg_index, global_index) for state and command.
    * Call before startPollLoop after setPlugins.
    */
-  void setRegisterMappings(
-      std::vector<std::vector<std::pair<uint16_t, size_t>>> state_mappings,
-      std::vector<std::vector<std::pair<uint16_t, size_t>>> command_mappings);
+  void setRegisterMappings(std::vector<std::vector<std::pair<uint16_t, size_t>>> state_mappings,
+                           std::vector<std::vector<std::pair<uint16_t, size_t>>> command_mappings);
 
   /**
    * Start poll thread. Builds read/write groups from plugins and mappings, then polls.
    * State is written to internal RT buffer; get_command() provides command_vals for write.
    * Call readStateSnapshotForRT() from RT context to read the latest state.
    */
-  void startPollLoop(
-      size_t state_count,
-      size_t command_count,
-      const std::vector<modbus_hw_interface::ModbusDeviceConfig>& devices,
-      std::function<std::vector<double>()> get_command);
+  void startPollLoop(size_t state_count, size_t command_count,
+                     const std::vector<modbus_hw_interface::ModbusDeviceConfig>& devices,
+                     std::function<std::vector<double>()> get_command);
 
   /**
    * Read latest state snapshot from poll thread (call from real-time context only).
@@ -95,7 +95,9 @@ class ModbusMaster {
   void stopPollLoop();
 
   /** True if poll thread is running. */
-  bool isPollLoopRunning() const { return poll_thread_.joinable(); }
+  bool isPollLoopRunning() const {
+    return poll_thread_.joinable();
+  }
 
   /** Write init_registers for each device once at startup. */
   void writeInitRegisters(const std::vector<modbus_hw_interface::ModbusDeviceConfig>& devices);

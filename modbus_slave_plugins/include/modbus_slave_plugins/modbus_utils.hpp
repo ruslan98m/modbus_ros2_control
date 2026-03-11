@@ -3,7 +3,8 @@
 
 /**
  * @file modbus_utils.hpp
- * @brief Helper functions for parsing and converting Modbus type strings (provided by modbus_slave_plugins).
+ * @brief Helper functions for parsing and converting Modbus type strings (provided by
+ * modbus_slave_plugins).
  */
 
 #ifndef MODBUS_HW_INTERFACE__MODBUS_UTILS_HPP_

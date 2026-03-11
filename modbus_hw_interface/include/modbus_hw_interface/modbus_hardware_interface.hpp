@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"

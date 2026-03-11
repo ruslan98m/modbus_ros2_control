@@ -3,8 +3,9 @@
 
 /**
  * @file generic_modbus_slave.hpp
- * @brief Generic Modbus slave plugin: parses device config from YAML (by analogy with GenericEcSlave).
- *        Use in URDF with plugin="modbus_slave_plugins/GenericModbusSlave" and param slave_config or device_config.
+ * @brief Generic Modbus slave plugin: parses device config from YAML (by analogy with
+ * GenericEcSlave). Use in URDF with plugin="modbus_slave_plugins/GenericModbusSlave" and param
+ * slave_config or device_config.
  */
 
 #ifndef MODBUS_SLAVE_PLUGINS__GENERIC_MODBUS_SLAVE_HPP_
@@ -24,7 +25,8 @@ namespace modbus_slave_plugins {
 /**
  * Generic Modbus slave plugin.
  * All config parsing is done inside the plugin (setup_from_config_file, setup_from_config),
- * like GenericEcSlave in ethercat_driver_ros2. Hardware interface only loads the plugin and calls setupSlave().
+ * like GenericEcSlave in ethercat_driver_ros2. Hardware interface only loads the plugin and calls
+ * setupSlave().
  */
 class GenericModbusSlave : public modbus_hw_interface::ModbusSlaveInterface {
  public:
@@ -43,14 +45,11 @@ class GenericModbusSlave : public modbus_hw_interface::ModbusSlaveInterface {
   bool setup_from_config_file(const std::string& config_file,
                               modbus_hw_interface::ModbusDeviceConfig& out);
 
-  void updateState(uint8_t device_index,
-                   const std::vector<std::string>& state_names,
-                   const double* state_values,
-                   size_t count,
+  void updateState(uint8_t device_index, const std::vector<std::string>& state_names,
+                   const double* state_values, size_t count,
                    modbus_hw_interface::SetStateCallback set_state) override;
 
-  void getCommand(uint8_t device_index,
-                  const std::vector<std::string>& command_names,
+  void getCommand(uint8_t device_index, const std::vector<std::string>& command_names,
                   modbus_hw_interface::GetCommandCallback get_command,
                   std::vector<double>& command_values_out) override;
 };

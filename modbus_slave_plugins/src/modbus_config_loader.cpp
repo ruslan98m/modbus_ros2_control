@@ -28,10 +28,14 @@ bool ModbusDeviceConfigLoader::loadFromNode(const std::string& path, const YAML:
                                             ModbusDeviceConfig& out) {
   out.registers.clear();
   out.init_registers.clear();
-  if (!loadOptions(path, root, out)) return false;
-  if (!loadInitRegisters(path, root, out)) return false;
-  if (!loadRegisters(path, root, out)) return false;
-  if (!validateNoDuplicateRegisterNames(path, out)) return false;
+  if (!loadOptions(path, root, out))
+    return false;
+  if (!loadInitRegisters(path, root, out))
+    return false;
+  if (!loadRegisters(path, root, out))
+    return false;
+  if (!validateNoDuplicateRegisterNames(path, out))
+    return false;
   return true;
 }
 
@@ -58,7 +62,8 @@ bool ModbusDeviceConfigLoader::loadOptions(const std::string& path, const YAML::
 bool ModbusDeviceConfigLoader::loadInitRegisters(const std::string& path, const YAML::Node& root,
                                                  ModbusDeviceConfig& out) {
   const YAML::Node init_list = root["init_registers"];
-  if (!init_list) return true;
+  if (!init_list)
+    return true;
   if (!init_list.IsSequence()) {
     RCLCPP_ERROR(logger_, "Device config '%s': init_registers must be a list", path.c_str());
     return false;
@@ -112,25 +117,33 @@ bool ModbusDeviceConfigLoader::loadRegisters(const std::string& path, const YAML
     const bool has_command = r["command_interface"].IsDefined();
     const bool has_state = r["state_interface"].IsDefined();
     if (has_command && has_state) {
-      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: cannot have both state_interface and command_interface",
+      RCLCPP_ERROR(logger_,
+                   "Device config '%s': registers[%zu]: cannot have both state_interface and "
+                   "command_interface",
                    path.c_str(), i);
       return false;
     }
     if (!has_command && !has_state) {
-      RCLCPP_ERROR(logger_, "Device config '%s': registers[%zu]: must have state_interface or command_interface",
-                   path.c_str(), i);
+      RCLCPP_ERROR(
+          logger_,
+          "Device config '%s': registers[%zu]: must have state_interface or command_interface",
+          path.c_str(), i);
       return false;
     }
-    reg.interface_name = has_command ? r["command_interface"].as<std::string>("") : r["state_interface"].as<std::string>("");
+    reg.interface_name = has_command ? r["command_interface"].as<std::string>("")
+                                     : r["state_interface"].as<std::string>("");
     reg.is_command = has_command;
     reg.data_type = dataTypeFromString(r["data_type"].as<std::string>("uint16"));
     reg.register_count = static_cast<uint16_t>(registerCountForDataType(reg.data_type));
-    if (r["factor"].IsDefined()) reg.factor = r["factor"].as<double>(1.0);
-    if (r["offset"].IsDefined()) reg.offset = r["offset"].as<double>(0.0);
+    if (r["factor"].IsDefined())
+      reg.factor = r["factor"].as<double>(1.0);
+    if (r["offset"].IsDefined())
+      reg.offset = r["offset"].as<double>(0.0);
     if (reg.type == RegisterType::InputRegister || reg.type == RegisterType::DiscreteInput) {
       if (has_command) {
         RCLCPP_ERROR(logger_,
-                     "Device config '%s': registers[%zu]: input_register/discrete_input are read-only, use state_interface only",
+                     "Device config '%s': registers[%zu]: input_register/discrete_input are "
+                     "read-only, use state_interface only",
                      path.c_str(), i);
         return false;
       }

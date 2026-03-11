@@ -3,8 +3,10 @@
 
 #include "modbus_master/modbus_master.hpp"
 
-#include <chrono>
+#include <modbus/modbus.h>
+
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -14,7 +16,6 @@
 #include "modbus_slave_interface/modbus_device_config.hpp"
 #include "modbus_slave_interface/modbus_types.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include <modbus/modbus.h>
 
 namespace modbus_master {
 
@@ -108,14 +109,12 @@ void ModbusMaster::buildPollGroups() {
     const auto& dev = (*devices_)[dev_idx];
     const uint8_t slave_id = static_cast<uint8_t>(dev.slave_id);
     const uint8_t device_index = static_cast<uint8_t>(dev_idx);
-    auto read_groups = plugins_[dev_idx]->buildReadBatchGroups(
-        device_index, slave_id, dev, state_register_mappings_[dev_idx]);
-    for (auto& g : read_groups)
-      read_batch_groups_.push_back(std::move(g));
+    auto read_groups = plugins_[dev_idx]->buildReadBatchGroups(device_index, slave_id, dev,
+                                                               state_register_mappings_[dev_idx]);
+    for (auto& g : read_groups) read_batch_groups_.push_back(std::move(g));
     auto write_groups = plugins_[dev_idx]->buildWriteBatchGroups(
         device_index, slave_id, dev, command_register_mappings_[dev_idx]);
-    for (auto& g : write_groups)
-      write_batch_groups_.push_back(std::move(g));
+    for (auto& g : write_groups) write_batch_groups_.push_back(std::move(g));
   }
 }
 
@@ -129,11 +128,9 @@ void ModbusMaster::pollDevices() {
     writeCommandBatched(write_batch_groups_, *devices_, cmd);
 }
 
-void ModbusMaster::startPollLoop(
-    size_t state_count,
-    size_t command_count,
-    const std::vector<ModbusDeviceConfig>& devices,
-    std::function<std::vector<double>()> get_command) {
+void ModbusMaster::startPollLoop(size_t state_count, size_t command_count,
+                                 const std::vector<ModbusDeviceConfig>& devices,
+                                 std::function<std::vector<double>()> get_command) {
   if (poll_thread_.joinable())
     return;
   if (!connect()) {
@@ -171,9 +168,8 @@ void ModbusMaster::pollThreadLoop() {
   detail::applyRealtimeThreadParams(logger, params_.thread_priority, params_.cpu_affinity_cores);
 
   const bool use_poll_delay = (params_.poll_rate_hz > 0.0);
-  const auto period = use_poll_delay
-                          ? std::chrono::duration<double>(1.0 / params_.poll_rate_hz)
-                          : std::chrono::duration<double>(0);
+  const auto period = use_poll_delay ? std::chrono::duration<double>(1.0 / params_.poll_rate_hz)
+                                     : std::chrono::duration<double>(0);
 
   if (!ctx_ || !devices_ || !get_command_)
     return;
@@ -200,10 +196,9 @@ void ModbusMaster::pollThreadLoop() {
   }
 }
 
-void ModbusMaster::readStateBatched(
-    std::vector<BatchGroup>& read_groups,
-    const std::vector<ModbusDeviceConfig>& devices,
-    std::vector<double>& state_vals) {
+void ModbusMaster::readStateBatched(std::vector<BatchGroup>& read_groups,
+                                    const std::vector<ModbusDeviceConfig>& devices,
+                                    std::vector<double>& state_vals) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();
@@ -224,8 +219,8 @@ void ModbusMaster::readStateBatched(
           }
         }
       } else if (grp.type == RegisterType::DiscreteInput) {
-        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count,
-                                   grp.buffer.data()) == static_cast<int>(grp.total_count)) {
+        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
+            static_cast<int>(grp.total_count)) {
           size_t off = 0;
           for (const auto& it : grp.items) {
             state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
@@ -254,10 +249,9 @@ void ModbusMaster::readStateBatched(
   }
 }
 
-void ModbusMaster::writeCommandBatched(
-    std::vector<BatchGroup>& write_groups,
-    const std::vector<ModbusDeviceConfig>& devices,
-    const std::vector<double>& command_vals) {
+void ModbusMaster::writeCommandBatched(std::vector<BatchGroup>& write_groups,
+                                       const std::vector<ModbusDeviceConfig>& devices,
+                                       const std::vector<double>& command_vals) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();
@@ -319,8 +313,7 @@ void ModbusMaster::writeCommandBatched(
   }
 }
 
-void ModbusMaster::writeInitRegisters(
-    const std::vector<ModbusDeviceConfig>& devices) {
+void ModbusMaster::writeInitRegisters(const std::vector<ModbusDeviceConfig>& devices) {
   if (!ctx_)
     return;
   modbus_t* ctx = ctx_.get();

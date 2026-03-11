@@ -52,11 +52,11 @@ class ModbusSlaveInterface {
                           ModbusDeviceConfig& out) = 0;
 
   /**
-   * Set this device's interfaces (name, global index) for state and command (called once by HW interface).
+   * Set this device's interfaces (name, global index) for state and command (called once by HW
+   * interface).
    */
-  void setInterfaces(uint8_t device_index,
-                    std::vector<InterfaceNameIndex> state_interfaces,
-                    std::vector<InterfaceNameIndex> command_interfaces);
+  void setInterfaces(uint8_t device_index, std::vector<InterfaceNameIndex> state_interfaces,
+                     std::vector<InterfaceNameIndex> command_interfaces);
 
   /**
    * Read from state_buffer at own indices and push to state interfaces via set_state.
@@ -70,47 +70,54 @@ class ModbusSlaveInterface {
    */
   virtual void writeCommand(GetCommandCallback get_command, std::vector<double>& cmd_vals);
 
-  uint8_t deviceIndex() const { return device_index_; }
-  size_t stateCount() const { return state_interfaces_.size(); }
-  size_t commandCount() const { return command_interfaces_.size(); }
-  const std::vector<InterfaceNameIndex>& stateInterfaces() const { return state_interfaces_; }
-  const std::vector<InterfaceNameIndex>& commandInterfaces() const { return command_interfaces_; }
-  const std::vector<std::string>& stateNames() const { return state_names_; }
-  const std::vector<std::string>& commandNames() const { return command_names_; }
+  uint8_t deviceIndex() const {
+    return device_index_;
+  }
+  size_t stateCount() const {
+    return state_interfaces_.size();
+  }
+  size_t commandCount() const {
+    return command_interfaces_.size();
+  }
+  const std::vector<InterfaceNameIndex>& stateInterfaces() const {
+    return state_interfaces_;
+  }
+  const std::vector<InterfaceNameIndex>& commandInterfaces() const {
+    return command_interfaces_;
+  }
+  const std::vector<std::string>& stateNames() const {
+    return state_names_;
+  }
+  const std::vector<std::string>& commandNames() const {
+    return command_names_;
+  }
 
   /**
    * Build read (state) batch groups for this device.
    * Returns ready-to-use BatchGroup with buffer allocated.
    */
   std::vector<modbus_slave_interface::BatchGroup> buildReadBatchGroups(
-      uint8_t device_index,
-      uint8_t slave_id,
-      const ModbusDeviceConfig& dev,
+      uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
       const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const;
 
   /**
    * Build write (command) batch groups for this device. Skips read-only types.
    */
   std::vector<modbus_slave_interface::BatchGroup> buildWriteBatchGroups(
-      uint8_t device_index,
-      uint8_t slave_id,
-      const ModbusDeviceConfig& dev,
+      uint8_t device_index, uint8_t slave_id, const ModbusDeviceConfig& dev,
       const std::vector<std::pair<uint16_t, size_t>>& reg_index_to_global_index) const;
 
   /**
    * Update state interfaces (used internally by readState). Override for custom mapping.
    */
-  virtual void updateState(uint8_t device_index,
-                          const std::vector<std::string>& state_names,
-                          const double* state_values,
-                          size_t count,
-                          SetStateCallback set_state) = 0;
+  virtual void updateState(uint8_t device_index, const std::vector<std::string>& state_names,
+                           const double* state_values, size_t count,
+                           SetStateCallback set_state) = 0;
 
   /**
    * Fill command values from command interfaces (used internally by writeCommand).
    */
-  virtual void getCommand(uint8_t device_index,
-                          const std::vector<std::string>& command_names,
+  virtual void getCommand(uint8_t device_index, const std::vector<std::string>& command_names,
                           GetCommandCallback get_command,
                           std::vector<double>& command_values_out) = 0;
 
@@ -118,7 +125,7 @@ class ModbusSlaveInterface {
   uint8_t device_index_{0};
   std::vector<InterfaceNameIndex> state_interfaces_;
   std::vector<InterfaceNameIndex> command_interfaces_;
-  std::vector<std::string> state_names_;   // cached .first for updateState
+  std::vector<std::string> state_names_;    // cached .first for updateState
   std::vector<std::string> command_names_;  // cached .first for getCommand
   std::vector<double> state_vals_buffer_;
   std::vector<double> command_out_buffer_;

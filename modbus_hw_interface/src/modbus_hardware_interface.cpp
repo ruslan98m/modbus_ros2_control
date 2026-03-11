@@ -41,8 +41,8 @@ bool ModbusSystemInterface::ensureConnected() {
     return false;
   }
   if (!master_->connect()) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "Failed to connect Modbus bus '%s'", bus_name_.c_str());
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "Failed to connect Modbus bus '%s'",
+                 bus_name_.c_str());
     return false;
   }
   return true;
@@ -81,19 +81,19 @@ bool ModbusSystemInterface::loadDevicesFromComponents(
   for (const auto &comp : components) {
     auto it_plugin = comp.parameters.find("plugin");
     if (it_plugin == comp.parameters.end() || it_plugin->second.empty()) {
-      RCLCPP_ERROR(logger,
-                   "%s '%s': missing param 'plugin' (e.g. modbus_slave_plugins/GenericModbusSlave). "
-                   "Config parsing is done only inside the plugin.",
-                   component_type.c_str(), comp.name.c_str());
+      RCLCPP_ERROR(
+          logger,
+          "%s '%s': missing param 'plugin' (e.g. modbus_slave_plugins/GenericModbusSlave). "
+          "Config parsing is done only inside the plugin.",
+          component_type.c_str(), comp.name.c_str());
       return false;
     }
 
     if (!modbus_slave_loader_) {
       try {
-        modbus_slave_loader_ =
-            std::make_unique<pluginlib::ClassLoader<ModbusSlaveInterface>>(
-                "modbus_slave_plugins", "modbus_hw_interface::ModbusSlaveInterface");
-      } catch (const pluginlib::PluginlibException & ex) {
+        modbus_slave_loader_ = std::make_unique<pluginlib::ClassLoader<ModbusSlaveInterface>>(
+            "modbus_slave_plugins", "modbus_hw_interface::ModbusSlaveInterface");
+      } catch (const pluginlib::PluginlibException &ex) {
         RCLCPP_ERROR(logger, "Failed to create Modbus slave plugin loader: %s", ex.what());
         return false;
       }
@@ -104,15 +104,14 @@ bool ModbusSystemInterface::loadDevicesFromComponents(
     try {
       auto slave = modbus_slave_loader_->createSharedInstance(it_plugin->second);
       if (!slave->setupSlave(comp.name, comp.parameters, dev)) {
-        RCLCPP_ERROR(logger, "Plugin '%s' setupSlave failed for %s '%s'",
-                    it_plugin->second.c_str(), component_type.c_str(), comp.name.c_str());
+        RCLCPP_ERROR(logger, "Plugin '%s' setupSlave failed for %s '%s'", it_plugin->second.c_str(),
+                     component_type.c_str(), comp.name.c_str());
         return false;
       }
       modbus_slaves_.push_back(slave);
-    } catch (const pluginlib::PluginlibException & ex) {
+    } catch (const pluginlib::PluginlibException &ex) {
       RCLCPP_ERROR(logger, "Failed to load Modbus slave plugin '%s' for %s '%s': %s",
-                  it_plugin->second.c_str(), component_type.c_str(), comp.name.c_str(),
-                  ex.what());
+                   it_plugin->second.c_str(), component_type.c_str(), comp.name.c_str(), ex.what());
       return false;
     }
     devices_.push_back(dev);
@@ -165,11 +164,13 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
       std::string if_name = dev_prefix + "_" + reg.interface_name;
       std::string full_name = hardware_name_ + "/" + if_name;
       if (reg.is_command) {
-        command_handles_.push_back(
-            {full_name, {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di), static_cast<uint16_t>(ri)}});
+        command_handles_.push_back({full_name,
+                                    {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di),
+                                     static_cast<uint16_t>(ri)}});
       } else {
-        state_handles_.push_back(
-            {full_name, {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di), static_cast<uint16_t>(ri)}});
+        state_handles_.push_back({full_name,
+                                  {static_cast<uint8_t>(dev.slave_id), static_cast<uint8_t>(di),
+                                   static_cast<uint16_t>(ri)}});
       }
     }
   }
@@ -197,32 +198,27 @@ void ModbusSystemInterface::assignDeviceInterfaces() {
       if (command_handles_[i].second.device_index == d)
         command_if.emplace_back(command_handles_[i].first, i);
     }
-    modbus_slaves_[d]->setInterfaces(d, std::move(state_if),
-                                     std::move(command_if));
+    modbus_slaves_[d]->setInterfaces(d, std::move(state_if), std::move(command_if));
   }
 }
 
 void ModbusSystemInterface::startMasterPollLoop() {
   if (!master_)
     return;
-  master_->startPollLoop(
-      state_handles_.size(),
-      command_handles_.size(),
-      devices_,
-      [this]() {
-        const std::vector<double> *p = command_buffer_.readFromNonRT();
-        if (p && p->size() == command_handles_.size())
-          return *p;
-        return std::vector<double>();
-      });
+  master_->startPollLoop(state_handles_.size(), command_handles_.size(), devices_, [this]() {
+    const std::vector<double> *p = command_buffer_.readFromNonRT();
+    if (p && p->size() == command_handles_.size())
+      return *p;
+    return std::vector<double>();
+  });
 }
 
 std::vector<hardware_interface::InterfaceDescription>
 ModbusSystemInterface::export_unlisted_state_interface_descriptions() {
   std::vector<hardware_interface::InterfaceDescription> out;
   const std::string prefix = hardware_name_ + "/";
-  for (const auto & slave : modbus_slaves_) {
-    for (const auto & full_name : slave->stateNames()) {
+  for (const auto &slave : modbus_slaves_) {
+    for (const auto &full_name : slave->stateNames()) {
       hardware_interface::InterfaceInfo inf;
       inf.name = prefix.empty() ? full_name : full_name.substr(prefix.size());
       inf.data_type = "double";
@@ -236,8 +232,8 @@ std::vector<hardware_interface::InterfaceDescription>
 ModbusSystemInterface::export_unlisted_command_interface_descriptions() {
   std::vector<hardware_interface::InterfaceDescription> out;
   const std::string prefix = hardware_name_ + "/";
-  for (const auto & slave : modbus_slaves_) {
-    for (const auto & full_name : slave->commandNames()) {
+  for (const auto &slave : modbus_slaves_) {
+    for (const auto &full_name : slave->commandNames()) {
       hardware_interface::InterfaceInfo inf;
       inf.name = prefix.empty() ? full_name : full_name.substr(prefix.size());
       inf.data_type = "double";
@@ -298,14 +294,13 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_error(
 
 hardware_interface::return_type ModbusSystemInterface::read(const rclcpp::Time & /*time*/,
                                                             const rclcpp::Duration & /*period*/) {
-  const std::vector<double> * ptr = master_->readStateSnapshotForRT();
+  const std::vector<double> *ptr = master_->readStateSnapshotForRT();
   if (!ptr || ptr->size() != state_handles_.size())
     return hardware_interface::return_type::OK;
   try {
-    auto set_state_cb = [this](const std::string & name, double value) { set_state(name, value); };
-    for (const auto & slave : modbus_slaves_)
-      slave->readState(*ptr, set_state_cb);
-  } catch (const std::exception & e) {
+    auto set_state_cb = [this](const std::string &name, double value) { set_state(name, value); };
+    for (const auto &slave : modbus_slaves_) slave->readState(*ptr, set_state_cb);
+  } catch (const std::exception &e) {
     RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "read: %s", e.what());
     return hardware_interface::return_type::ERROR;
   }
@@ -317,13 +312,10 @@ hardware_interface::return_type ModbusSystemInterface::write(const rclcpp::Time 
   if (cmd_vals_.size() != command_handles_.size())
     return hardware_interface::return_type::OK;
   try {
-    auto get_command_cb = [this](const std::string & name) {
-      return get_command<double>(name);
-    };
-    for (const auto & slave : modbus_slaves_)
-      slave->writeCommand(get_command_cb, cmd_vals_);
+    auto get_command_cb = [this](const std::string &name) { return get_command<double>(name); };
+    for (const auto &slave : modbus_slaves_) slave->writeCommand(get_command_cb, cmd_vals_);
     command_buffer_.writeFromNonRT(cmd_vals_);
-  } catch (const std::exception & e) {
+  } catch (const std::exception &e) {
     RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "write: %s", e.what());
     return hardware_interface::return_type::ERROR;
   }

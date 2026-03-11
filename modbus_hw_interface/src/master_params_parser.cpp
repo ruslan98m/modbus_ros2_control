@@ -30,18 +30,15 @@ bool parseMasterParams(const hardware_interface::HardwareInfo& info,
     out.is_tcp = false;
     out.rtu_params.serial_port = get("serial_port", "/dev/ttyUSB0");
     try {
-      out.rtu_params.baud_rate =
-          static_cast<uint32_t>(std::stoi(get("baud_rate", "9600")));
+      out.rtu_params.baud_rate = static_cast<uint32_t>(std::stoi(get("baud_rate", "9600")));
     } catch (...) {
       out.rtu_params.baud_rate = 9600;
     }
     const std::string par = get("parity", "N");
     out.rtu_params.parity = par.empty() ? 'N' : par[0];
     try {
-      out.rtu_params.data_bits =
-          static_cast<uint8_t>(std::stoi(get("data_bits", "8")));
-      out.rtu_params.stop_bits =
-          static_cast<uint8_t>(std::stoi(get("stop_bits", "1")));
+      out.rtu_params.data_bits = static_cast<uint8_t>(std::stoi(get("data_bits", "8")));
+      out.rtu_params.stop_bits = static_cast<uint8_t>(std::stoi(get("stop_bits", "1")));
     } catch (...) {
       out.rtu_params.data_bits = 8;
       out.rtu_params.stop_bits = 1;

@@ -3,12 +3,12 @@
 
 #include "modbus_master/modbus_master_helpers.hpp"
 
+#include <sys/resource.h>
+
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-
-#include <sys/resource.h>
 
 #include "rclcpp/rclcpp.hpp"
 #include "realtime_tools/realtime_helpers.hpp"
@@ -33,10 +33,8 @@ void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
         RCLCPP_INFO(logger, "Poll thread: successfully locked memory");
       }
       if (!realtime_tools::configure_sched_fifo(thread_priority)) {
-        RCLCPP_ERROR(
-            logger,
-            "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s).",
-            errno, strerror(errno));
+        RCLCPP_ERROR(logger, "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s).",
+                     errno, strerror(errno));
       } else {
         RCLCPP_INFO(logger, "Poll thread set to FIFO RT scheduling with priority %d",
                     thread_priority);
@@ -96,10 +94,9 @@ double decodeRegistersFromBuffer(const uint16_t* tab, size_t offset, int registe
     return static_cast<double>(u32);
   }
   if (register_count == 4) {
-    const uint64_t u64 =
-        (static_cast<uint64_t>(tab[offset]) << 48) |
-        (static_cast<uint64_t>(tab[offset + 1]) << 32) |
-        (static_cast<uint64_t>(tab[offset + 2]) << 16) | tab[offset + 3];
+    const uint64_t u64 = (static_cast<uint64_t>(tab[offset]) << 48) |
+                         (static_cast<uint64_t>(tab[offset + 1]) << 32) |
+                         (static_cast<uint64_t>(tab[offset + 2]) << 16) | tab[offset + 3];
     if (data_type == RegisterDataType::Float64) {
       double d;
       memcpy(&d, &u64, 8);
@@ -203,8 +200,7 @@ bool writeRegisterValue(modbus_t* ctx, const ModbusRegisterConfig& reg, double v
         } else {
           u32 = static_cast<uint32_t>(value);
         }
-        uint16_t tab[2] = {static_cast<uint16_t>(u32 >> 16),
-                           static_cast<uint16_t>(u32 & 0xFFFF)};
+        uint16_t tab[2] = {static_cast<uint16_t>(u32 >> 16), static_cast<uint16_t>(u32 & 0xFFFF)};
         return modbus_write_registers(ctx, reg.address, 2, tab) == 2;
       }
       if (reg.register_count == 4) {
