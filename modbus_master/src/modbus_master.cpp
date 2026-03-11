@@ -3,6 +3,7 @@
 
 #include "modbus_master/modbus_master.hpp"
 
+#include <chrono>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
@@ -11,6 +12,7 @@
 
 #include "modbus_slave_plugins/modbus_device_config.hpp"
 #include "modbus_slave_plugins/modbus_types.hpp"
+#include "modbus_slave_plugins/modbus_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <modbus/modbus.h>
 
@@ -231,6 +233,106 @@ bool ModbusMaster::connect(const RtuConnectionParams& params) {
 
 void ModbusMaster::disconnect() {
   ctx_.reset();
+}
+
+bool ModbusMaster::initFromParams(
+    const std::unordered_map<std::string, std::string>& params) {
+  return parseMasterParams(params, params_);
+}
+
+bool ModbusMaster::connect() {
+  if (ctx_)
+    return true;
+  if (params_.is_tcp) {
+    return connect(params_.tcp_params);
+  }
+  return connect(params_.rtu_params);
+}
+
+void ModbusMaster::resetInitRegisters() {
+  init_registers_done_.store(false);
+}
+
+void ModbusMaster::startPollLoop(
+    size_t state_count,
+    size_t command_count,
+    std::vector<BatchGroup>& read_groups,
+    std::vector<BatchGroup>& write_groups,
+    const std::vector<ModbusDeviceConfig>& devices,
+    std::function<std::vector<double>()> get_command) {
+  if (poll_thread_.joinable())
+    return;
+  if (!connect()) {
+    RCLCPP_ERROR(rclcpp::get_logger("modbus_master"), "startPollLoop: connect failed");
+    return;
+  }
+  state_count_ = state_count;
+  command_count_ = command_count;
+  read_groups_ = &read_groups;
+  write_groups_ = &write_groups;
+  devices_ = &devices;
+  get_command_ = std::move(get_command);
+  state_poll_buffer_.resize(state_count_, 0.0);
+  state_buffer_.initRT(std::vector<double>(state_count_, 0.0));
+
+  poll_running_.store(true);
+  poll_thread_ = std::thread(&ModbusMaster::pollThreadLoop, this);
+}
+
+void ModbusMaster::stopPollLoop() {
+  poll_running_.store(false);
+  if (poll_thread_.joinable()) {
+    poll_thread_.join();
+    poll_thread_ = std::thread();
+  }
+  read_groups_ = nullptr;
+  write_groups_ = nullptr;
+  devices_ = nullptr;
+}
+
+const std::vector<double>* ModbusMaster::readStateSnapshotForRT() const {
+  return state_buffer_.readFromRT();
+}
+
+void ModbusMaster::pollThreadLoop() {
+  const auto logger = rclcpp::get_logger("modbus_master");
+  modbus_hw_interface::applyRealtimeThreadParams(
+      logger, params_.thread_priority, params_.cpu_affinity_cores);
+
+  const bool use_poll_delay = (params_.poll_rate_hz > 0.0);
+  const auto period = use_poll_delay
+                          ? std::chrono::duration<double>(1.0 / params_.poll_rate_hz)
+                          : std::chrono::duration<double>(0);
+
+  if (!ctx_ || !devices_ || !read_groups_ || !write_groups_ || !get_command_)
+    return;
+
+  if (!init_registers_done_.exchange(true)) {
+    writeInitRegisters(*devices_);
+  }
+
+  while (poll_running_.load(std::memory_order_relaxed)) {
+    const auto iteration_start = std::chrono::steady_clock::now();
+
+    readStateBatched(*read_groups_, *devices_, state_poll_buffer_);
+    state_buffer_.writeFromNonRT(state_poll_buffer_);
+
+    std::vector<double> cmd = get_command_();
+    if (cmd.size() == command_count_) {
+      writeCommandBatched(*write_groups_, *devices_, cmd);
+    }
+
+    if (use_poll_delay) {
+      const auto elapsed =
+          std::chrono::duration<double>(std::chrono::steady_clock::now() - iteration_start);
+      const auto remaining = period - elapsed;
+      if (remaining.count() > 0) {
+        std::this_thread::sleep_for(remaining);
+      } else {
+        RCLCPP_WARN(logger, "Poll delay: elapsed %g > period %g", elapsed.count(), period.count());
+      }
+    }
+  }
 }
 
 void ModbusMaster::readStateBatched(
