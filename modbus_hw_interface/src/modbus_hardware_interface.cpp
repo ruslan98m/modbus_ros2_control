@@ -11,16 +11,13 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
-#include <sstream>
 #include <stdexcept>
 #include <utility>
 
-#include "modbus_master/connection_params.hpp"
 #include "modbus_slave_plugins/modbus_slave_interface.hpp"
 #include "modbus_slave_plugins/modbus_utils.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "realtime_tools/realtime_helpers.hpp"
 
 namespace modbus_hw_interface {
 
@@ -30,85 +27,21 @@ bool ModbusSystemInterface::loadBusFromParams(const hardware_interface::Hardware
     auto it = p.find(key);
     return (it != p.end()) ? it->second : def;
   };
-  std::string type_str = get("connection_type", "tcp");
-  if (type_str == "tcp") {
-    bus_config_.is_tcp = true;
-    bus_config_.tcp_params.ip_address = get("ip_address", "127.0.0.1");
-    try {
-      bus_config_.tcp_params.port = static_cast<uint16_t>(std::stoi(get("port", "502")));
-    } catch (...) {
-      bus_config_.tcp_params.port = 502;
-    }
-  } else if (type_str == "rtu") {
-    bus_config_.is_tcp = false;
-    bus_config_.rtu_params.serial_port = get("serial_port", "/dev/ttyUSB0");
-    try {
-      bus_config_.rtu_params.baud_rate = static_cast<uint32_t>(std::stoi(get("baud_rate", "9600")));
-    } catch (...) {
-      bus_config_.rtu_params.baud_rate = 9600;
-    }
-    std::string par = get("parity", "N");
-    bus_config_.rtu_params.parity = par.empty() ? 'N' : par[0];
-    try {
-      bus_config_.rtu_params.data_bits = static_cast<uint8_t>(std::stoi(get("data_bits", "8")));
-      bus_config_.rtu_params.stop_bits = static_cast<uint8_t>(std::stoi(get("stop_bits", "1")));
-    } catch (...) {
-      bus_config_.rtu_params.data_bits = 8;
-      bus_config_.rtu_params.stop_bits = 1;
-    }
-  } else {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "connection_type must be 'tcp' or 'rtu', got '%s'", type_str.c_str());
-    return false;
-  }
-  bus_config_.bus_name = get("bus_name", bus_config_.is_tcp ? "tcp" : "rtu");
-
-  try {
-    poll_rate_hz_ = std::stod(get("poll_rate_hz", "0"));
-  } catch (...) {
-    poll_rate_hz_ = 0.0;
-  }
-  try {
-    thread_priority_ = std::stoi(get("thread_priority", "50"));
-  } catch (...) {
-    thread_priority_ = 50;
-  }
-  std::string affinity_str = get("cpu_affinity", "");
-  cpu_affinity_cores_.clear();
-  if (!affinity_str.empty()) {
-    std::istringstream ss(affinity_str);
-    std::string part;
-    while (std::getline(ss, part, ',')) {
-      try {
-        size_t pos;
-        int c = std::stoi(part, &pos);
-        if (c >= 0)
-          cpu_affinity_cores_.push_back(c);
-      } catch (...) {
-      }
-    }
-  }
-
+  bus_config_.bus_name = get("bus_name", "modbus_bus");
   return true;
 }
 
 bool ModbusSystemInterface::ensureConnected() {
   if (master_ && master_->isConnected())
     return true;
-  if (!master_)
-    master_ = std::make_unique<modbus_master::ModbusMaster>();
-  if (bus_config_.is_tcp) {
-    if (!master_->connect(bus_config_.tcp_params)) {
-      RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                   "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
-      return false;
-    }
-  } else {
-    if (!master_->connect(bus_config_.rtu_params)) {
-      RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                   "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
-      return false;
-    }
+  if (!master_) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "Master not initialized");
+    return false;
+  }
+  if (!master_->connect()) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
+                 "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
+    return false;
   }
   return true;
 }
@@ -236,8 +169,6 @@ void ModbusSystemInterface::buildBatchGroups() {
 
   build_read();
   build_write();
-
-  state_poll_buffer_.resize(state_handles_.size(), 0.0);
 }
 
 bool ModbusSystemInterface::loadDevicesFromComponents(
@@ -297,6 +228,13 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
+  master_ = std::make_unique<modbus_master::ModbusMaster>();
+  if (!master_->initFromParams(info.hardware_parameters)) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
+                 "Modbus master initFromParams failed (invalid connection_type or params)");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
   if (!loadDevicesFromComponents(info.joints, "Joint")) {
     return hardware_interface::CallbackReturn::ERROR;
   }
@@ -309,7 +247,6 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
 
   state_handles_.clear();
   command_handles_.clear();
-  poll_running_.store(false);
 
   for (size_t di = 0; di < bus_config_.devices.size(); ++di) {
     const auto &dev = bus_config_.devices[di];
@@ -328,113 +265,62 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
     }
   }
 
-  state_buffer_.initRT(std::vector<double>(state_handles_.size(), 0.0));
   command_buffer_.initRT(std::vector<double>(command_handles_.size(), 0.0));
 
   buildBatchGroups();
-  buildRtBuffers();
+  assignDeviceInterfaces();
+
+  cmd_vals_.resize(command_handles_.size(), 0.0);
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-void ModbusSystemInterface::buildRtBuffers() {
-  const size_t num_devices = bus_config_.devices.size();
-  state_names_per_device_.resize(num_devices);
-  state_vals_per_device_.resize(num_devices);
-  command_names_per_device_.resize(num_devices);
-  command_out_per_device_.resize(num_devices);
-  command_global_index_.resize(num_devices);
-
-  state_to_device_local_.resize(state_handles_.size());
-  std::vector<size_t> device_state_count(num_devices, 0);
-  for (size_t i = 0; i < state_handles_.size(); ++i) {
-    const size_t d = state_handles_[i].second.device_index;
-    const size_t j = device_state_count[d]++;
-    state_to_device_local_[i] = {d, j};
-    state_names_per_device_[d].push_back(state_handles_[i].first);
-    state_vals_per_device_[d].push_back(0.0);
-  }
-
-  for (size_t d = 0; d < num_devices; ++d) {
+void ModbusSystemInterface::assignDeviceInterfaces() {
+  const uint8_t num_devices = static_cast<uint8_t>(modbus_slaves_.size());
+  for (uint8_t d = 0; d < num_devices; ++d) {
+    std::vector<modbus_hw_interface::InterfaceNameIndex> state_if;
+    for (size_t i = 0; i < state_handles_.size(); ++i) {
+      if (state_handles_[i].second.device_index == d)
+        state_if.emplace_back(state_handles_[i].first, i);
+    }
+    std::vector<modbus_hw_interface::InterfaceNameIndex> command_if;
     for (size_t i = 0; i < command_handles_.size(); ++i) {
-      if (command_handles_[i].second.device_index == d) {
-        command_names_per_device_[d].push_back(command_handles_[i].first);
-        command_out_per_device_[d].push_back(0.0);
-        command_global_index_[d].push_back(i);
-      }
+      if (command_handles_[i].second.device_index == d)
+        command_if.emplace_back(command_handles_[i].first, i);
     }
-  }
-
-  cmd_vals_.resize(command_handles_.size(), 0.0);
-}
-
-void ModbusSystemInterface::pollThreadLoop() {
-  const auto logger = rclcpp::get_logger("ModbusSystemInterface");
-  applyRealtimeThreadParams(logger, thread_priority_, cpu_affinity_cores_);
-
-  const bool use_poll_delay = (poll_rate_hz_ > 0.0);
-  const auto period = use_poll_delay ? std::chrono::duration<double>(1.0 / poll_rate_hz_)
-                                     : std::chrono::duration<double>(0);
-  if (!master_ || !master_->isConnected())
-    return;
-
-  if (!init_registers_done_.exchange(true)) {
-    master_->writeInitRegisters(bus_config_.devices);
-  }
-
-  while (poll_running_.load(std::memory_order_relaxed)) {
-    const auto iteration_start = std::chrono::steady_clock::now();
-
-    master_->readStateBatched(read_batch_groups_, bus_config_.devices, state_poll_buffer_);
-    state_buffer_.writeFromNonRT(state_poll_buffer_);
-
-    const std::vector<double> *ptr = command_buffer_.readFromNonRT();
-    if (ptr && ptr->size() == command_handles_.size()) {
-      master_->writeCommandBatched(write_batch_groups_, bus_config_.devices, *ptr);
-    }
-
-    if (use_poll_delay) {
-      const auto elapsed =
-          std::chrono::duration<double>(std::chrono::steady_clock::now() - iteration_start);
-      const auto remaining = period - elapsed;
-      if (remaining.count() > 0) {
-        std::this_thread::sleep_for(remaining);
-      } else {
-        RCLCPP_WARN(logger, "Poll delay: elapsed time %g > period %g", elapsed.count(),
-                    period.count());
-      }
-    }
+    modbus_slaves_[d]->setInterfaces(d, std::move(state_if),
+                                     std::move(command_if));
   }
 }
 
-void ModbusSystemInterface::startPollThread() {
-  if (poll_thread_.joinable())
+void ModbusSystemInterface::startMasterPollLoop() {
+  if (!master_)
     return;
-  if (!ensureConnected())
-    return;
-  poll_running_.store(true);
-  poll_thread_ = std::thread(&ModbusSystemInterface::pollThreadLoop, this);
-}
-
-void ModbusSystemInterface::stopPollThread() {
-  poll_running_.store(false);
-  if (poll_thread_.joinable()) {
-    poll_thread_.join();
-    poll_thread_ = std::thread();
-  }
+  master_->startPollLoop(
+      state_handles_.size(),
+      command_handles_.size(),
+      read_batch_groups_,
+      write_batch_groups_,
+      bus_config_.devices,
+      [this]() {
+        const std::vector<double> *p = command_buffer_.readFromNonRT();
+        if (p && p->size() == command_handles_.size())
+          return *p;
+        return std::vector<double>();
+      });
 }
 
 std::vector<hardware_interface::InterfaceDescription>
 ModbusSystemInterface::export_unlisted_state_interface_descriptions() {
   std::vector<hardware_interface::InterfaceDescription> out;
-  for (const auto &[full_name, h] : state_handles_) {
-    const auto &reg = bus_config_.devices[h.device_index].registers[h.reg_index];
-    const auto &dev = bus_config_.devices[h.device_index];
-    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.interface_name;
-    hardware_interface::InterfaceInfo inf;
-    inf.name = if_name;
-    inf.data_type = "double";
-    out.push_back(hardware_interface::InterfaceDescription(hardware_name_, inf));
+  const std::string prefix = hardware_name_ + "/";
+  for (const auto & slave : modbus_slaves_) {
+    for (const auto & full_name : slave->stateNames()) {
+      hardware_interface::InterfaceInfo inf;
+      inf.name = prefix.empty() ? full_name : full_name.substr(prefix.size());
+      inf.data_type = "double";
+      out.push_back(hardware_interface::InterfaceDescription(hardware_name_, inf));
+    }
   }
   return out;
 }
@@ -442,14 +328,14 @@ ModbusSystemInterface::export_unlisted_state_interface_descriptions() {
 std::vector<hardware_interface::InterfaceDescription>
 ModbusSystemInterface::export_unlisted_command_interface_descriptions() {
   std::vector<hardware_interface::InterfaceDescription> out;
-  for (const auto &[full_name, h] : command_handles_) {
-    const auto &reg = bus_config_.devices[h.device_index].registers[h.reg_index];
-    const auto &dev = bus_config_.devices[h.device_index];
-    std::string if_name = bus_config_.bus_name + "_" + dev.name + "_" + reg.interface_name;
-    hardware_interface::InterfaceInfo inf;
-    inf.name = if_name;
-    inf.data_type = "double";
-    out.push_back(hardware_interface::InterfaceDescription(hardware_name_, inf));
+  const std::string prefix = hardware_name_ + "/";
+  for (const auto & slave : modbus_slaves_) {
+    for (const auto & full_name : slave->commandNames()) {
+      hardware_interface::InterfaceInfo inf;
+      inf.name = prefix.empty() ? full_name : full_name.substr(prefix.size());
+      inf.data_type = "double";
+      out.push_back(hardware_interface::InterfaceDescription(hardware_name_, inf));
+    }
   }
   return out;
 }
@@ -459,67 +345,61 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_configure(
   if (!ensureConnected()) {
     return hardware_interface::CallbackReturn::ERROR;
   }
-  startPollThread();
+  startMasterPollLoop();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_cleanup(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  stopPollThread();
+  if (master_)
+    master_->stopPollLoop();
   closeContext();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_activate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  init_registers_done_.store(false);
-  if (!poll_thread_.joinable())
-    startPollThread();
+  if (master_)
+    master_->resetInitRegisters();
+  if (master_ && !master_->isPollLoopRunning())
+    startMasterPollLoop();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_deactivate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  stopPollThread();
+  if (master_)
+    master_->stopPollLoop();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_shutdown(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  stopPollThread();
+  if (master_)
+    master_->stopPollLoop();
   closeContext();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_error(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  stopPollThread();
+  if (master_)
+    master_->stopPollLoop();
   closeContext();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::return_type ModbusSystemInterface::read(const rclcpp::Time & /*time*/,
                                                             const rclcpp::Duration & /*period*/) {
-  const std::vector<double> * ptr = state_buffer_.readFromRT();
-  if (!ptr || ptr->size() != state_handles_.size() ||
-      state_vals_per_device_.size() != modbus_slaves_.size()) {
+  const std::vector<double> * ptr = master_->readStateSnapshotForRT();
+  if (!ptr || ptr->size() != state_handles_.size())
     return hardware_interface::return_type::OK;
-  }
   try {
-    for (size_t i = 0; i < state_handles_.size(); ++i) {
-      const auto [d, j] = state_to_device_local_[i];
-      state_vals_per_device_[d][j] = (*ptr)[i];
-    }
     auto set_state_cb = [this](const std::string & name, double value) { set_state(name, value); };
-    for (size_t d = 0; d < modbus_slaves_.size(); ++d) {
-      auto & vals = state_vals_per_device_[d];
-      if (!vals.empty()) {
-        modbus_slaves_[d]->updateState(d, state_names_per_device_[d], vals.data(), vals.size(),
-                                      set_state_cb);
-      }
-    }
+    for (const auto & slave : modbus_slaves_)
+      slave->readState(*ptr, set_state_cb);
   } catch (const std::exception & e) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "read (updateState): %s", e.what());
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "read: %s", e.what());
     return hardware_interface::return_type::ERROR;
   }
   return hardware_interface::return_type::OK;
@@ -533,19 +413,11 @@ hardware_interface::return_type ModbusSystemInterface::write(const rclcpp::Time 
     auto get_command_cb = [this](const std::string & name) {
       return get_command<double>(name);
     };
-    for (size_t d = 0; d < modbus_slaves_.size(); ++d) {
-      if (d >= command_global_index_.size() || command_names_per_device_[d].empty())
-        continue;
-      modbus_slaves_[d]->getCommand(d, command_names_per_device_[d], get_command_cb,
-                                   command_out_per_device_[d]);
-      const auto & out = command_out_per_device_[d];
-      const auto & indices = command_global_index_[d];
-      for (size_t j = 0; j < out.size() && j < indices.size(); ++j)
-        cmd_vals_[indices[j]] = out[j];
-    }
+    for (const auto & slave : modbus_slaves_)
+      slave->writeCommand(get_command_cb, cmd_vals_);
     command_buffer_.writeFromNonRT(cmd_vals_);
   } catch (const std::exception & e) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "write (getCommand): %s", e.what());
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "write: %s", e.what());
     return hardware_interface::return_type::ERROR;
   }
   return hardware_interface::return_type::OK;

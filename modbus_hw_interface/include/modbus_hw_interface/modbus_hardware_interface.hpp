@@ -4,13 +4,10 @@
 #ifndef MODBUS_HW_INTERFACE__MODBUS_HARDWARE_INTERFACE_HPP_
 #define MODBUS_HW_INTERFACE__MODBUS_HARDWARE_INTERFACE_HPP_
 
-#include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
-#include <thread>
 #include <unordered_map>
 
 #include "hardware_interface/hardware_info.hpp"
@@ -67,26 +64,15 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
   bool ensureConnected();
   void closeContext();
   void buildBatchGroups();
-  /** Pre-allocate state/command name and value buffers for RT-safe read()/write(). */
-  void buildRtBuffers();
-  void pollThreadLoop();
-  void startPollThread();
-  void stopPollThread();
+  /** Call setInterfaces() on each plugin so devices own their interface names/indices. */
+  void assignDeviceInterfaces();
+  /** Start master poll loop (no-op if already running). */
+  void startMasterPollLoop();
 
   ModbusBusConfig bus_config_;
   std::unique_ptr<modbus_master::ModbusMaster> master_;
   std::string hardware_name_;
 
-  // Poll in a separate thread (sequential: read all state, then write all command)
-  std::thread poll_thread_;
-  std::atomic<bool> poll_running_{false};
-  std::atomic<bool> init_registers_done_{
-      false};                            // reset in on_activate, set after first init write
-  double poll_rate_hz_{0.0};             // 0 = no delay in poll loop (run as fast as possible)
-  int thread_priority_{50};              // SCHED_FIFO 0-99 when RT kernel, else unused
-  std::vector<int> cpu_affinity_cores_;  // empty = no affinity
-
-  realtime_tools::RealtimeBuffer<std::vector<double>> state_buffer_;
   realtime_tools::RealtimeBuffer<std::vector<double>> command_buffer_;
 
   struct RegisterHandle {
@@ -100,26 +86,11 @@ class ModbusSystemInterface : public hardware_interface::SystemInterface {
   std::vector<modbus_master::BatchGroup> read_batch_groups_;
   std::vector<modbus_master::BatchGroup> write_batch_groups_;
 
-  /** Reused in poll loop to avoid allocations (size = state_handles_.size()). */
-  std::vector<double> state_poll_buffer_;
-
-  /** Pre-allocated for read() RT path: state interface names and values per device. */
-  std::vector<std::vector<std::string>> state_names_per_device_;
-  std::vector<std::vector<double>> state_vals_per_device_;
-  /** state_handles_[i] -> (device_index, local_index) for one-pass scatter in read(). */
-  std::vector<std::pair<size_t, size_t>> state_to_device_local_;
-
-  /** Pre-allocated for write() RT path. */
+  /** Pre-allocated for write() RT path (size = command_handles_.size()). */
   std::vector<double> cmd_vals_;
-  std::vector<std::vector<std::string>> command_names_per_device_;
-  std::vector<std::vector<double>> command_out_per_device_;
-  /** command_global_index_[d][j] = global index into cmd_vals_ for device d, local j. */
-  std::vector<std::vector<size_t>> command_global_index_;
 
-  /** Loader for Modbus slave plugins (e.g. modbus_slave_plugins/GenericModbusSlave). */
   std::unique_ptr<pluginlib::ClassLoader<ModbusSlaveInterface>> modbus_slave_loader_;
-
-  /** Loaded plugin instances (one per device), like ec_modules_ in EthercatDriver. */
+  /** Loaded plugin instances (one per device); each owns its interfaces via setInterfaces(). */
   std::vector<std::shared_ptr<ModbusSlaveInterface>> modbus_slaves_;
 };
 
