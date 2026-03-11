@@ -11,9 +11,10 @@ find_package(rclcpp REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-# Shared types, utils and config loader (used by modbus_hw_interface and by plugins)
+# Shared types, utils, config loader and base interface impl
 add_library(modbus_slave_common SHARED
   src/modbus_config_loader.cpp
+  src/modbus_slave_interface.cpp
   src/modbus_utils.cpp
 )
 target_include_directories(modbus_slave_common PUBLIC

@@ -10,6 +10,7 @@
 #ifndef MODBUS_SLAVE_PLUGINS__GENERIC_MODBUS_SLAVE_HPP_
 #define MODBUS_SLAVE_PLUGINS__GENERIC_MODBUS_SLAVE_HPP_
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -42,13 +43,13 @@ class GenericModbusSlave : public modbus_hw_interface::ModbusSlaveInterface {
   bool setup_from_config_file(const std::string& config_file,
                               modbus_hw_interface::ModbusDeviceConfig& out);
 
-  void updateState(size_t device_index,
+  void updateState(uint8_t device_index,
                    const std::vector<std::string>& state_names,
                    const double* state_values,
                    size_t count,
                    modbus_hw_interface::SetStateCallback set_state) override;
 
-  void getCommand(size_t device_index,
+  void getCommand(uint8_t device_index,
                   const std::vector<std::string>& command_names,
                   modbus_hw_interface::GetCommandCallback get_command,
                   std::vector<double>& command_values_out) override;

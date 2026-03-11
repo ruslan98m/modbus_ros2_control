@@ -82,7 +82,7 @@ bool GenericModbusSlave::setup_from_config_file(const std::string& config_file,
   }
 }
 
-void GenericModbusSlave::updateState(size_t /*device_index*/,
+void GenericModbusSlave::updateState(uint8_t /*device_index*/,
                                     const std::vector<std::string>& state_names,
                                     const double* state_values,
                                     size_t count,
@@ -92,7 +92,7 @@ void GenericModbusSlave::updateState(size_t /*device_index*/,
   }
 }
 
-void GenericModbusSlave::getCommand(size_t /*device_index*/,
+void GenericModbusSlave::getCommand(uint8_t /*device_index*/,
                                    const std::vector<std::string>& command_names,
                                    modbus_hw_interface::GetCommandCallback get_command,
                                    std::vector<double>& command_values_out) {
