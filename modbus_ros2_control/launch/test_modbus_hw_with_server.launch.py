@@ -37,9 +37,9 @@ def build_robot_description():
       <param name="port">5502</param>
       <param name="poll_rate_hz">50</param>
       <param name="thread_priority">50</param>
-      <param name="cpu_affinity"></param>
     </hardware>
     <joint name="plc_1">
+      <param name="plugin">modbus_slave_plugins/GenericModbusSlave</param>
       <param name="slave_id">1</param>
       <param name="device_config">{device_config}</param>
     </joint>

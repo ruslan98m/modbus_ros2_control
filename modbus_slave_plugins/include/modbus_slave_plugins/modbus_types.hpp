@@ -1,9 +1,9 @@
-// Copyright 2025 modbus_hw_interface contributors.
+// Copyright 2025 modbus_slave_plugins contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 /**
  * @file modbus_types.hpp
- * @brief Modbus register and data type enums used by the hardware interface and utils.
+ * @brief Modbus register and data type enums (provided by modbus_slave_plugins for slave interface).
  */
 
 #ifndef MODBUS_HW_INTERFACE__MODBUS_TYPES_HPP_

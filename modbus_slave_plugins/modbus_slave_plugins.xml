@@ -1,0 +1,10 @@
+<library path="modbus_slave_plugins">
+  <class name="modbus_slave_plugins/GenericModbusSlave"
+         type="modbus_slave_plugins::GenericModbusSlave"
+         base_class_type="modbus_hw_interface::ModbusSlaveInterface">
+    <description>
+      Generic Modbus slave. Loads device config from YAML (slave_config or device_config param).
+      Use in URDF inside joint/gpio/sensor with plugin and slave_id, device_config/slave_config.
+    </description>
+  </class>
+</library>

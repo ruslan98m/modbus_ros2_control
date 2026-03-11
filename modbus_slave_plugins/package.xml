@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>modbus_slave_plugins</name>
+  <version>0.1.0</version>
+  <description>
+    Modbus slave interface and plugins. Provides ModbusSlaveInterface base class, types (ModbusDeviceConfig),
+    config loader, and GenericModbusSlave plugin. modbus_hw_interface depends on this package.
+  </description>
+  <maintainer email="ruslan98mambetov@gmail.com">Ruslan Mambetov</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>realtime_tools</depend>
+  <depend>yaml-cpp</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -15,9 +15,9 @@
 #include <stdexcept>
 #include <utility>
 
-#include "modbus_hw_interface/modbus_config_loader.hpp"
-#include "modbus_hw_interface/modbus_io.hpp"
-#include "modbus_hw_interface/modbus_utils.hpp"
+#include "modbus_master/connection_params.hpp"
+#include "modbus_slave_plugins/modbus_slave_interface.hpp"
+#include "modbus_slave_plugins/modbus_utils.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "realtime_tools/realtime_helpers.hpp"
@@ -33,28 +33,28 @@ bool ModbusSystemInterface::loadBusFromParams(const hardware_interface::Hardware
   std::string type_str = get("connection_type", "tcp");
   if (type_str == "tcp") {
     bus_config_.is_tcp = true;
-    bus_config_.ip_address = get("ip_address", "127.0.0.1");
+    bus_config_.tcp_params.ip_address = get("ip_address", "127.0.0.1");
     try {
-      bus_config_.port = std::stoi(get("port", "502"));
+      bus_config_.tcp_params.port = static_cast<uint16_t>(std::stoi(get("port", "502")));
     } catch (...) {
-      bus_config_.port = 502;
+      bus_config_.tcp_params.port = 502;
     }
   } else if (type_str == "rtu") {
     bus_config_.is_tcp = false;
-    bus_config_.serial_port = get("serial_port", "/dev/ttyUSB0");
+    bus_config_.rtu_params.serial_port = get("serial_port", "/dev/ttyUSB0");
     try {
-      bus_config_.baud_rate = std::stoi(get("baud_rate", "9600"));
+      bus_config_.rtu_params.baud_rate = static_cast<uint32_t>(std::stoi(get("baud_rate", "9600")));
     } catch (...) {
-      bus_config_.baud_rate = 9600;
+      bus_config_.rtu_params.baud_rate = 9600;
     }
     std::string par = get("parity", "N");
-    bus_config_.parity = par.empty() ? 'N' : par[0];
+    bus_config_.rtu_params.parity = par.empty() ? 'N' : par[0];
     try {
-      bus_config_.data_bits = std::stoi(get("data_bits", "8"));
-      bus_config_.stop_bits = std::stoi(get("stop_bits", "1"));
+      bus_config_.rtu_params.data_bits = static_cast<uint8_t>(std::stoi(get("data_bits", "8")));
+      bus_config_.rtu_params.stop_bits = static_cast<uint8_t>(std::stoi(get("stop_bits", "1")));
     } catch (...) {
-      bus_config_.data_bits = 8;
-      bus_config_.stop_bits = 1;
+      bus_config_.rtu_params.data_bits = 8;
+      bus_config_.rtu_params.stop_bits = 1;
     }
   } else {
     RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
@@ -92,48 +92,30 @@ bool ModbusSystemInterface::loadBusFromParams(const hardware_interface::Hardware
   return true;
 }
 
-modbus_t *ModbusSystemInterface::getContext() {
-  if (ctx_)
-    return ctx_;
-  const auto &c = bus_config_;
-  if (c.is_tcp) {
-    ctx_ = modbus_new_tcp(c.ip_address.c_str(), c.port);
+bool ModbusSystemInterface::ensureConnected() {
+  if (master_ && master_->isConnected())
+    return true;
+  if (!master_)
+    master_ = std::make_unique<modbus_master::ModbusMaster>();
+  if (bus_config_.is_tcp) {
+    if (!master_->connect(bus_config_.tcp_params)) {
+      RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
+                   "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
+      return false;
+    }
   } else {
-    ctx_ = modbus_new_rtu(c.serial_port.c_str(), c.baud_rate, c.parity, c.data_bits, c.stop_bits);
+    if (!master_->connect(bus_config_.rtu_params)) {
+      RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
+                   "Failed to connect Modbus bus '%s'", bus_config_.bus_name.c_str());
+      return false;
+    }
   }
-  if (!ctx_) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "Failed to create Modbus context for bus '%s'", c.bus_name.c_str());
-    return nullptr;
-  }
-  if (modbus_connect(ctx_) != 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"),
-                 "Failed to connect Modbus bus '%s': %s", c.bus_name.c_str(),
-                 modbus_strerror(errno));
-    modbus_free(ctx_);
-    ctx_ = nullptr;
-    return nullptr;
-  }
-  return ctx_;
-}
-
-void ModbusSystemInterface::setContextResponseTimeout(modbus_t *ctx, size_t device_index) {
-  if (ctx == nullptr || device_index >= bus_config_.devices.size())
-    return;
-  const auto &dev = bus_config_.devices[device_index];
-  if (dev.response_timeout_sec <= 0)
-    return;
-  double s = dev.response_timeout_sec;
-  uint32_t to_sec = static_cast<uint32_t>(s);
-  uint32_t to_usec = static_cast<uint32_t>((s - to_sec) * 1e6);
-  modbus_set_response_timeout(ctx, to_sec, to_usec);
+  return true;
 }
 
 void ModbusSystemInterface::closeContext() {
-  if (ctx_) {
-    modbus_close(ctx_);
-    modbus_free(ctx_);
-    ctx_ = nullptr;
+  if (master_) {
+    master_->disconnect();
   }
 }
 
@@ -165,7 +147,7 @@ void ModbusSystemInterface::buildBatchGroups() {
       for (size_t i = 0; i < items.size();) {
         const RegisterType cur_type = items[i].second->type;
         int cur_addr = items[i].second->address;
-        BatchGroup grp;
+        modbus_master::BatchGroup grp;
         grp.device_index = static_cast<uint8_t>(dev_idx);
         grp.slave_id = static_cast<uint8_t>(slave_id);
         grp.type = cur_type;
@@ -223,7 +205,7 @@ void ModbusSystemInterface::buildBatchGroups() {
           ++i;
           continue;
         }
-        BatchGroup grp;
+        modbus_master::BatchGroup grp;
         grp.device_index = static_cast<uint8_t>(dev_idx);
         grp.slave_id = static_cast<uint8_t>(slave_id);
         grp.type = cur_type;
@@ -258,142 +240,45 @@ void ModbusSystemInterface::buildBatchGroups() {
   state_poll_buffer_.resize(state_handles_.size(), 0.0);
 }
 
-void ModbusSystemInterface::readStateBatched(modbus_t *ctx, std::vector<double> &state_vals) {
-  if (state_vals.size() != state_handles_.size())
-    return;
-  std::fill(state_vals.begin(), state_vals.end(), 0.0);
-  for (auto &grp : read_batch_groups_) {
-    setContextResponseTimeout(ctx, static_cast<size_t>(grp.device_index));
-    if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
-      continue;
-    if (grp.use_batch && grp.total_count > 0 && !grp.buffer.empty()) {
-      if (grp.type == RegisterType::Coil) {
-        if (modbus_read_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
-            static_cast<int>(grp.total_count)) {
-          size_t off = 0;
-          for (const auto &it : grp.items) {
-            state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
-            off += static_cast<size_t>(it.register_count);
-          }
-        }
-      } else if (grp.type == RegisterType::DiscreteInput) {
-        if (modbus_read_input_bits(ctx, grp.start_address, grp.total_count, grp.buffer.data()) ==
-            static_cast<int>(grp.total_count)) {
-          size_t off = 0;
-          for (const auto &it : grp.items) {
-            state_vals[it.index] = grp.buffer[off] ? 1.0 : 0.0;
-            off += static_cast<size_t>(it.register_count);
-          }
-        }
-      } else {
-        uint16_t *regs = reinterpret_cast<uint16_t *>(grp.buffer.data());
-        int ret = (grp.type == RegisterType::InputRegister)
-                      ? modbus_read_input_registers(ctx, grp.start_address, grp.total_count, regs)
-                      : modbus_read_registers(ctx, grp.start_address, grp.total_count, regs);
-        if (ret == static_cast<int>(grp.total_count)) {
-          size_t off = 0;
-          for (const auto &it : grp.items) {
-            state_vals[it.index] = decodeRegistersFromBuffer(regs, off, it.register_count, it.data_type);
-            off += static_cast<size_t>(it.register_count);
-          }
-        }
-      }
-    } else {
-      for (const auto &it : grp.items) {
-        state_vals[it.index] = readRegisterValue(ctx, *it.reg);
-      }
-    }
-  }
-}
-
-void ModbusSystemInterface::writeCommandBatched(modbus_t *ctx,
-                                                const std::vector<double> &command_vals) {
-  if (command_vals.size() != command_handles_.size())
-    return;
-  for (auto &grp : write_batch_groups_) {
-    setContextResponseTimeout(ctx, static_cast<size_t>(grp.device_index));
-    if (modbus_set_slave(ctx, static_cast<int>(grp.slave_id)) < 0)
-      continue;
-    if (grp.use_batch && grp.total_count > 0 && grp.type == RegisterType::HoldingRegister &&
-        !grp.buffer.empty()) {
-      uint16_t *regs = reinterpret_cast<uint16_t *>(grp.buffer.data());
-      size_t off = 0;
-      for (const auto &it : grp.items) {
-        const double val = command_vals[it.index];
-        const ModbusRegisterConfig *reg = it.reg;
-        if (reg->register_count == 1) {
-          regs[off] = (reg->data_type == RegisterDataType::Int16)
-                          ? static_cast<uint16_t>(static_cast<int16_t>(val))
-                          : static_cast<uint16_t>(val);
-        } else if (reg->register_count == 2) {
-          uint32_t u32;
-          if (reg->data_type == RegisterDataType::Float32) {
-            float f = static_cast<float>(val);
-            memcpy(&u32, &f, 4);
-          } else {
-            u32 = static_cast<uint32_t>(val);
-          }
-          regs[off] = static_cast<uint16_t>(u32 >> 16);
-          regs[off + 1] = static_cast<uint16_t>(u32 & 0xFFFF);
-        } else if (reg->register_count == 4) {
-          uint64_t u64;
-          if (reg->data_type == RegisterDataType::Float64) {
-            memcpy(&u64, &val, 8);
-          } else if (reg->data_type == RegisterDataType::Int64) {
-            u64 = static_cast<uint64_t>(static_cast<int64_t>(val));
-          } else {
-            u64 = static_cast<uint64_t>(val);
-          }
-          regs[off] = static_cast<uint16_t>(u64 >> 48);
-          regs[off + 1] = static_cast<uint16_t>((u64 >> 32) & 0xFFFF);
-          regs[off + 2] = static_cast<uint16_t>((u64 >> 16) & 0xFFFF);
-          regs[off + 3] = static_cast<uint16_t>(u64 & 0xFFFF);
-        }
-        off += static_cast<size_t>(reg->register_count);
-      }
-      modbus_write_registers(ctx, grp.start_address, grp.total_count, regs);
-    } else if (grp.use_batch && grp.type == RegisterType::Coil && !grp.buffer.empty()) {
-      for (size_t g = 0; g < grp.buffer.size(); ++g) {
-        grp.buffer[g] = (std::fabs(command_vals[grp.items[g].index]) > 0.5) ? 1 : 0;
-      }
-      modbus_write_bits(ctx, grp.start_address, static_cast<int>(grp.buffer.size()), grp.buffer.data());
-    } else {
-      for (const auto &it : grp.items) {
-        writeRegisterValue(ctx, *it.reg, command_vals[it.index]);
-      }
-    }
-  }
-}
-
 bool ModbusSystemInterface::loadDevicesFromComponents(
     const std::vector<hardware_interface::ComponentInfo> &components,
     const std::string &component_type) {
   const auto logger = rclcpp::get_logger("ModbusSystemInterface");
-  ModbusDeviceConfigLoader config_loader(logger);
   for (const auto &comp : components) {
-    auto it_cfg = comp.parameters.find("device_config");
-    if (it_cfg == comp.parameters.end()) {
-      it_cfg = comp.parameters.find("slave_config");
-    }
-    if (it_cfg == comp.parameters.end() || it_cfg->second.empty()) {
+    auto it_plugin = comp.parameters.find("plugin");
+    if (it_plugin == comp.parameters.end() || it_plugin->second.empty()) {
       RCLCPP_ERROR(logger,
-                   "%s '%s': missing param 'device_config' or 'slave_config' (path to device YAML)",
+                   "%s '%s': missing param 'plugin' (e.g. modbus_slave_plugins/GenericModbusSlave). "
+                   "Config parsing is done only inside the plugin.",
                    component_type.c_str(), comp.name.c_str());
       return false;
     }
-    int slave_id = 1;
-    auto it_slave = comp.parameters.find("slave_id");
-    if (it_slave != comp.parameters.end()) {
+
+    if (!modbus_slave_loader_) {
       try {
-        slave_id = std::stoi(it_slave->second);
-      } catch (...) {
+        modbus_slave_loader_ =
+            std::make_unique<pluginlib::ClassLoader<ModbusSlaveInterface>>(
+                "modbus_slave_plugins", "modbus_hw_interface::ModbusSlaveInterface");
+      } catch (const pluginlib::PluginlibException & ex) {
+        RCLCPP_ERROR(logger, "Failed to create Modbus slave plugin loader: %s", ex.what());
+        return false;
       }
     }
+
     ModbusDeviceConfig dev;
     dev.name = comp.name;
-    dev.slave_id = slave_id;
-    if (!config_loader.load(it_cfg->second, dev)) {
-      RCLCPP_ERROR(logger, "Failed to load device config from '%s'", it_cfg->second.c_str());
+    try {
+      auto slave = modbus_slave_loader_->createSharedInstance(it_plugin->second);
+      if (!slave->setupSlave(comp.name, comp.parameters, dev)) {
+        RCLCPP_ERROR(logger, "Plugin '%s' setupSlave failed for %s '%s'",
+                    it_plugin->second.c_str(), component_type.c_str(), comp.name.c_str());
+        return false;
+      }
+      modbus_slaves_.push_back(slave);
+    } catch (const pluginlib::PluginlibException & ex) {
+      RCLCPP_ERROR(logger, "Failed to load Modbus slave plugin '%s' for %s '%s': %s",
+                  it_plugin->second.c_str(), component_type.c_str(), comp.name.c_str(),
+                  ex.what());
       return false;
     }
     bus_config_.devices.push_back(dev);
@@ -406,6 +291,7 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
   const auto &info = params.hardware_info;
   hardware_name_ = info.name;
   bus_config_.devices.clear();
+  modbus_slaves_.clear();
 
   if (!loadBusFromParams(info)) {
     return hardware_interface::CallbackReturn::ERROR;
@@ -446,8 +332,40 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_init(
   command_buffer_.initRT(std::vector<double>(command_handles_.size(), 0.0));
 
   buildBatchGroups();
+  buildRtBuffers();
 
   return hardware_interface::CallbackReturn::SUCCESS;
+}
+
+void ModbusSystemInterface::buildRtBuffers() {
+  const size_t num_devices = bus_config_.devices.size();
+  state_names_per_device_.resize(num_devices);
+  state_vals_per_device_.resize(num_devices);
+  command_names_per_device_.resize(num_devices);
+  command_out_per_device_.resize(num_devices);
+  command_global_index_.resize(num_devices);
+
+  state_to_device_local_.resize(state_handles_.size());
+  std::vector<size_t> device_state_count(num_devices, 0);
+  for (size_t i = 0; i < state_handles_.size(); ++i) {
+    const size_t d = state_handles_[i].second.device_index;
+    const size_t j = device_state_count[d]++;
+    state_to_device_local_[i] = {d, j};
+    state_names_per_device_[d].push_back(state_handles_[i].first);
+    state_vals_per_device_[d].push_back(0.0);
+  }
+
+  for (size_t d = 0; d < num_devices; ++d) {
+    for (size_t i = 0; i < command_handles_.size(); ++i) {
+      if (command_handles_[i].second.device_index == d) {
+        command_names_per_device_[d].push_back(command_handles_[i].first);
+        command_out_per_device_[d].push_back(0.0);
+        command_global_index_[d].push_back(i);
+      }
+    }
+  }
+
+  cmd_vals_.resize(command_handles_.size(), 0.0);
 }
 
 void ModbusSystemInterface::pollThreadLoop() {
@@ -457,46 +375,22 @@ void ModbusSystemInterface::pollThreadLoop() {
   const bool use_poll_delay = (poll_rate_hz_ > 0.0);
   const auto period = use_poll_delay ? std::chrono::duration<double>(1.0 / poll_rate_hz_)
                                      : std::chrono::duration<double>(0);
-  modbus_t *ctx = getContext();
-  if (!ctx)
+  if (!master_ || !master_->isConnected())
     return;
 
   if (!init_registers_done_.exchange(true)) {
-    for (size_t di = 0; di < bus_config_.devices.size(); ++di) {
-      const auto &dev = bus_config_.devices[di];
-      if (dev.init_registers.empty())
-        continue;
-      setContextResponseTimeout(ctx, di);
-      if (modbus_set_slave(ctx, dev.slave_id) < 0) {
-        RCLCPP_WARN(logger, "Init registers: failed to set slave_id %d", dev.slave_id);
-        continue;
-      }
-      for (const auto &init : dev.init_registers) {
-        ModbusRegisterConfig reg;
-        reg.type = init.type;
-        reg.address = static_cast<uint16_t>(init.address);
-        reg.data_type = init.data_type;
-        reg.register_count = static_cast<uint16_t>(init.register_count);
-        if (modbus_hw_interface::writeRegisterValue(ctx, reg, init.value)) {
-          RCLCPP_DEBUG(logger, "Init write dev '%s' addr %d = %g", dev.name.c_str(), init.address,
-                       init.value);
-        } else {
-          RCLCPP_WARN(logger, "Init write failed dev '%s' type %d addr %d", dev.name.c_str(),
-                      static_cast<int>(init.type), init.address);
-        }
-      }
-    }
+    master_->writeInitRegisters(bus_config_.devices);
   }
 
   while (poll_running_.load(std::memory_order_relaxed)) {
     const auto iteration_start = std::chrono::steady_clock::now();
 
-    readStateBatched(ctx, state_poll_buffer_);
+    master_->readStateBatched(read_batch_groups_, bus_config_.devices, state_poll_buffer_);
     state_buffer_.writeFromNonRT(state_poll_buffer_);
 
     const std::vector<double> *ptr = command_buffer_.readFromNonRT();
     if (ptr && ptr->size() == command_handles_.size()) {
-      writeCommandBatched(ctx, *ptr);
+      master_->writeCommandBatched(write_batch_groups_, bus_config_.devices, *ptr);
     }
 
     if (use_poll_delay) {
@@ -515,6 +409,8 @@ void ModbusSystemInterface::pollThreadLoop() {
 
 void ModbusSystemInterface::startPollThread() {
   if (poll_thread_.joinable())
+    return;
+  if (!ensureConnected())
     return;
   poll_running_.store(true);
   poll_thread_ = std::thread(&ModbusSystemInterface::pollThreadLoop, this);
@@ -560,7 +456,7 @@ ModbusSystemInterface::export_unlisted_command_interface_descriptions() {
 
 hardware_interface::CallbackReturn ModbusSystemInterface::on_configure(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  if (!getContext()) {
+  if (!ensureConnected()) {
     return hardware_interface::CallbackReturn::ERROR;
   }
   startPollThread();
@@ -604,15 +500,26 @@ hardware_interface::CallbackReturn ModbusSystemInterface::on_error(
 
 hardware_interface::return_type ModbusSystemInterface::read(const rclcpp::Time & /*time*/,
                                                             const rclcpp::Duration & /*period*/) {
-  std::vector<double> *ptr = state_buffer_.readFromRT();
-  if (!ptr || ptr->size() != state_handles_.size())
+  const std::vector<double> * ptr = state_buffer_.readFromRT();
+  if (!ptr || ptr->size() != state_handles_.size() ||
+      state_vals_per_device_.size() != modbus_slaves_.size()) {
     return hardware_interface::return_type::OK;
+  }
   try {
     for (size_t i = 0; i < state_handles_.size(); ++i) {
-      set_state(state_handles_[i].first, (*ptr)[i]);
+      const auto [d, j] = state_to_device_local_[i];
+      state_vals_per_device_[d][j] = (*ptr)[i];
     }
-  } catch (const std::exception &e) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "set_state: %s", e.what());
+    auto set_state_cb = [this](const std::string & name, double value) { set_state(name, value); };
+    for (size_t d = 0; d < modbus_slaves_.size(); ++d) {
+      auto & vals = state_vals_per_device_[d];
+      if (!vals.empty()) {
+        modbus_slaves_[d]->updateState(d, state_names_per_device_[d], vals.data(), vals.size(),
+                                      set_state_cb);
+      }
+    }
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "read (updateState): %s", e.what());
     return hardware_interface::return_type::ERROR;
   }
   return hardware_interface::return_type::OK;
@@ -620,17 +527,27 @@ hardware_interface::return_type ModbusSystemInterface::read(const rclcpp::Time &
 
 hardware_interface::return_type ModbusSystemInterface::write(const rclcpp::Time & /*time*/,
                                                              const rclcpp::Duration & /*period*/) {
-  std::vector<double> cmd_vals;
-  cmd_vals.reserve(command_handles_.size());
+  if (cmd_vals_.size() != command_handles_.size())
+    return hardware_interface::return_type::OK;
   try {
-    for (const auto &[full_name, h] : command_handles_) {
-      cmd_vals.push_back(get_command<double>(full_name));
+    auto get_command_cb = [this](const std::string & name) {
+      return get_command<double>(name);
+    };
+    for (size_t d = 0; d < modbus_slaves_.size(); ++d) {
+      if (d >= command_global_index_.size() || command_names_per_device_[d].empty())
+        continue;
+      modbus_slaves_[d]->getCommand(d, command_names_per_device_[d], get_command_cb,
+                                   command_out_per_device_[d]);
+      const auto & out = command_out_per_device_[d];
+      const auto & indices = command_global_index_[d];
+      for (size_t j = 0; j < out.size() && j < indices.size(); ++j)
+        cmd_vals_[indices[j]] = out[j];
     }
-  } catch (const std::exception &e) {
-    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "get_command: %s", e.what());
+    command_buffer_.writeFromNonRT(cmd_vals_);
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(rclcpp::get_logger("ModbusSystemInterface"), "write (getCommand): %s", e.what());
     return hardware_interface::return_type::ERROR;
   }
-  command_buffer_.writeFromNonRT(cmd_vals);
   return hardware_interface::return_type::OK;
 }
 

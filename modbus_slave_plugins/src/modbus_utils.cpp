@@ -1,12 +1,7 @@
-// Copyright 2025 modbus_ros2_control contributors.
+// Copyright 2025 modbus_slave_plugins contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * @file modbus_utils.cpp
- * @brief String/type conversion helpers and realtime thread helpers for Modbus.
- */
-
-#include "modbus_hw_interface/modbus_utils.hpp"
+#include "modbus_slave_plugins/modbus_utils.hpp"
 
 #include <sys/resource.h>
 
@@ -24,7 +19,6 @@ namespace modbus_hw_interface {
 
 namespace {
 
-/** Data type: full and short names (i8/u8 map to 16-bit; Modbus registers are 16-bit) */
 static const std::unordered_map<std::string, RegisterDataType> STR_TO_DATA_TYPE = {
     {"bool", RegisterDataType::Bool},       {"b", RegisterDataType::Bool},
     {"int16", RegisterDataType::Int16},     {"i16", RegisterDataType::Int16},
@@ -38,7 +32,6 @@ static const std::unordered_map<std::string, RegisterDataType> STR_TO_DATA_TYPE 
     {"float64", RegisterDataType::Float64}, {"f64", RegisterDataType::Float64},
 };
 
-/** Register type: full and short names */
 static const std::unordered_map<std::string, RegisterType> STR_TO_REG_TYPE = {
     {"coil", RegisterType::Coil},
     {"c", RegisterType::Coil},
@@ -50,7 +43,6 @@ static const std::unordered_map<std::string, RegisterType> STR_TO_REG_TYPE = {
     {"hr", RegisterType::HoldingRegister},
 };
 
-/** Canonical string per data type (for interface export) */
 static const std::unordered_map<RegisterDataType, std::string, RegisterDataTypeHash>
     DATA_TYPE_TO_STR = {
         {RegisterDataType::Bool, "bool"},       {RegisterDataType::Int16, "int16"},
@@ -60,7 +52,6 @@ static const std::unordered_map<RegisterDataType, std::string, RegisterDataTypeH
         {RegisterDataType::Float64, "float64"},
 };
 
-/** Number of 16-bit registers per data type */
 static const std::unordered_map<RegisterDataType, int, RegisterDataTypeHash>
     DATA_TYPE_TO_REG_COUNT = {
         {RegisterDataType::Bool, 1},  {RegisterDataType::Int16, 1},  {RegisterDataType::Uint16, 1},
@@ -68,7 +59,6 @@ static const std::unordered_map<RegisterDataType, int, RegisterDataTypeHash>
         {RegisterDataType::Int64, 4}, {RegisterDataType::Uint64, 4}, {RegisterDataType::Float64, 4},
 };
 
-/** @return Lowercase copy of @a s (for case-insensitive lookup) */
 std::string toLower(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -111,9 +101,7 @@ void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
       if (!realtime_tools::configure_sched_fifo(thread_priority)) {
         RCLCPP_ERROR(
             logger,
-            "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s). "
-            "See https://control.ros.org/doc/ros2_control/controller_manager/doc/userdoc.html for "
-            "details.",
+            "Could not enable FIFO RT scheduling for poll thread: error <%d>(%s).",
             errno, strerror(errno));
       } else {
         RCLCPP_INFO(logger, "Poll thread set to FIFO RT scheduling with priority %d",
@@ -130,7 +118,6 @@ void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
         RCLCPP_INFO(logger, "Poll thread set to nice %d (non-RT)", -NON_RT_NICE);
       }
     }
-
     if (!cpu_affinity_cores.empty()) {
       const auto affinity_result = realtime_tools::set_current_thread_affinity(cpu_affinity_cores);
       if (!affinity_result.first) {
@@ -141,9 +128,8 @@ void applyRealtimeThreadParams(rclcpp::Logger logger, int thread_priority,
                     cpu_affinity_cores.size());
       }
     }
-
     if (has_realtime) {
-      constexpr size_t MAX_SAFE_STACK = 8 * 1024;  // 8 KiB
+      constexpr size_t MAX_SAFE_STACK = 8 * 1024;
       uint8_t dummy[MAX_SAFE_STACK];
       std::memset(dummy, 0, sizeof(dummy));
       (void)dummy;
