@@ -210,6 +210,10 @@ class TestModbusLifecycle(unittest.TestCase):
             self.assertGreater(
                 len(received), 0, "No /dynamic_joint_states message received"
             )
+            # Allow time for poll thread and read() to propagate register values
+            for _ in range(30):
+                rclpy.spin_once(node, timeout_sec=0.1)
+            self.assertGreater(len(received), 0, "No /dynamic_joint_states messages")
             msg = received[-1]
             # joint_state_broadcaster may use hardware name 'ModbusTCP' or joint name 'plc_1'
             try:
