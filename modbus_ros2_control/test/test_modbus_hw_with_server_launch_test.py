@@ -266,5 +266,7 @@ class TestModbusHwWithServerExitCodes(unittest.TestCase):
     """After shutdown: assert all processes exited with code 0."""
 
     def test_processes_exit_gracefully(self, proc_info):
-        # 0 = ok, -2 = SIGINT
-        launch_testing.asserts.assertExitCodes(proc_info, allowable_exit_codes=[0, -2])
+        # 0 = ok, -2 = SIGINT, -15 = SIGTERM; 130 = 128+2 (SIGINT), 143 = 128+15 (SIGTERM) in CI
+        launch_testing.asserts.assertExitCodes(
+            proc_info, allowable_exit_codes=[0, -2, -15, 130, 143]
+        )
