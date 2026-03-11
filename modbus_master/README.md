@@ -9,13 +9,14 @@ Used by [modbus_hw_interface](modbus_hw_interface) so that the hardware interfac
 - **TcpConnectionParams** — TCP bus (ip_address, port).
 - **RtuConnectionParams** — RTU/serial bus (serial_port, baud_rate, parity, data_bits, stop_bits).
 - **ModbusMaster** — `connect()`, `disconnect()`, `readStateBatched()`, `writeCommandBatched()`, `writeInitRegisters()`.
-- **BatchGroup** / **BatchItem** — describe batches of registers for read/write; built by the hardware interface from device config.
+- **BatchGroup** / **BatchItem** — from [modbus_slave_interface](../modbus_slave_interface); describe batches of registers for read/write; built by the master from device plugins and mappings.
 
 ## Dependencies
 
-- **modbus_slave_plugins** — for `ModbusDeviceConfig`, `ModbusRegisterConfig`, `RegisterType`, `RegisterDataType`.
+- **modbus_slave_interface** — for `ModbusDeviceConfig`, `ModbusRegisterConfig`, `RegisterType`, `RegisterDataType`, `BatchGroup`, and `ModbusSlaveInterface`.
 - **libmodbus** — transport (TCP/RTU).
 - **rclcpp** — logging only.
+- **realtime_tools** — poll thread priority, affinity, memory lock.
 
 ## Build
 
