@@ -14,8 +14,8 @@ from launch_ros.actions import Node
 
 def build_robot_description():
     """Build robot_description for test: Modbus TCP 127.0.0.1:5502."""
-    pkg_hw = get_package_share_directory("modbus_hw_interface")
-    device_config = os.path.join(pkg_hw, "config", "devices", "plc_device.yaml")
+    pkg_examples = get_package_share_directory("modbus_ros2_control_examples")
+    device_config = os.path.join(pkg_examples, "config", "devices", "plc_device.yaml")
     if not os.path.isfile(device_config):
         raise FileNotFoundError(f"device config not found: {device_config}")
     return f"""<?xml version="1.0"?>
@@ -50,8 +50,8 @@ def build_robot_description():
 
 def generate_launch_description():
     robot_description = build_robot_description()
-    pkg_hw = get_package_share_directory("modbus_hw_interface")
-    controllers_yaml = os.path.join(pkg_hw, "config", "controllers.yaml")
+    pkg_examples = get_package_share_directory("modbus_ros2_control_examples")
+    controllers_yaml = os.path.join(pkg_examples, "config", "controllers.yaml")
 
     controller_manager_node = Node(
         package="controller_manager",

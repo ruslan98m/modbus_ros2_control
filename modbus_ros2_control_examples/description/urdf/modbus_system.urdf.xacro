@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="modbus_robot">
   <link name="base_link"/>
 
-  <xacro:include filename="$(find modbus_hw_interface)/description/ros2_control/modbus_bus.ros2_control.xacro"/>
+  <xacro:include filename="$(find modbus_ros2_control_examples)/description/ros2_control/modbus_bus.ros2_control.xacro"/>
 
   <!-- TCP bus: each device must have plugin (config parsing is done inside the plugin) -->
   <xacro:modbus_tcp_bus name="ModbusTCP" bus_name="tcp_bus" ip_address="192.168.1.10" port="502">
@@ -10,7 +10,7 @@
       <joint name="plc_1">
         <param name="plugin">modbus_slave_plugins/GenericModbusSlave</param>
         <param name="slave_id">1</param>
-        <param name="slave_config">$(find modbus_hw_interface)/config/devices/plc_device.yaml</param>
+        <param name="slave_config">$(find modbus_ros2_control_examples)/config/devices/plc_device.yaml</param>
       </joint>
     </devices>
   </xacro:modbus_tcp_bus>

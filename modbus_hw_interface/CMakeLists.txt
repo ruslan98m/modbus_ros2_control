@@ -38,10 +38,6 @@ install(TARGETS modbus_hardware_interface
 install(DIRECTORY include/
   DESTINATION include
 )
-install(DIRECTORY config description launch
-  DESTINATION share/${PROJECT_NAME}
-  OPTIONAL
-)
 
 ament_export_include_directories(include)
 ament_export_libraries(modbus_hardware_interface)
